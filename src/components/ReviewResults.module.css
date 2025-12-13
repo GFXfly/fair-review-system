@@ -1,0 +1,130 @@
+.container {
+    margin-top: 2rem;
+    width: 100%;
+}
+
+.title {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-left: 5px solid #0070f3;
+    padding-left: 1rem;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #eaeaea;
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.high {
+    border-left: 5px solid #e00;
+}
+
+.medium {
+    border-left: 5px solid #f5a623;
+}
+
+.low {
+    border-left: 5px solid #0070f3;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #fff;
+}
+
+.badgeHigh {
+    background: #e00;
+}
+
+.badgeMedium {
+    background: #f5a623;
+}
+
+.badgeLow {
+    background: #0070f3;
+}
+
+.tag {
+    background: #f0f0f0;
+    color: #666;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.section {
+    margin-bottom: 0.8rem;
+}
+
+.label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 0.3rem;
+}
+
+.quote {
+    background: #f9f9f9;
+    padding: 0.8rem;
+    border-radius: 6px;
+    font-style: italic;
+    color: #555;
+    margin: 0;
+    border-left: 3px solid #ddd;
+}
+
+.reason {
+    color: #e00;
+    margin: 0;
+}
+
+.case {
+    color: #666;
+    margin: 0;
+}
+
+.citation {
+    color: #0070f3;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.suggestionBox {
+    background: #f0f9ff;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+    border: 1px solid #b9e2ff;
+}
+
+.suggestion {
+    color: #0066cc;
+    margin: 0;
+    font-weight: 500;
+}

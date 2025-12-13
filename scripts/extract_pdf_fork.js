@@ -1,0 +1,8 @@
+const fs = require('fs');
+const pdf = require('pdf-parse-fork');
+
+let dataBuffer = fs.readFileSync('ndrc_cases_5.pdf');
+
+pdf(dataBuffer).then(function (data) {
+    console.log(data.text);
+});

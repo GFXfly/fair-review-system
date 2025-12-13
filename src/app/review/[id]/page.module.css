@@ -1,0 +1,620 @@
+/* Layout */
+.container {
+    height: 100vh;
+    /* Fixed height to prevent body scroll */
+    display: flex;
+    flex-direction: column;
+    background-color: #f3f4f6;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    /* No body scroll */
+}
+
+/* Header */
+.header {
+    height: 64px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    flex-shrink: 0;
+    z-index: 20;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s ease;
+}
+
+.headerCompact {
+    height: 52px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.1);
+}
+
+.backLink {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #6b7280;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.backLink:hover {
+    color: #111827;
+    background: #f3f4f6;
+}
+
+.fileInfo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.fileName {
+    font-weight: 600;
+    color: #111827;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+}
+
+.fileTag {
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border: 1px solid #dbeafe;
+}
+
+.headerActions {
+    display: flex;
+    gap: 12px;
+}
+
+.actionBtn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #374151;
+    transition: all 0.2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.actionBtn:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.primaryBtn {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: white;
+    border: none;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.primaryBtn:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
+}
+
+/* Main Split View */
+.main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Left: Document Viewer */
+.docPanel {
+    flex: 1;
+    flex-shrink: 1;
+    background: #f3f4f6;
+    padding: 40px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+}
+
+.docPaper {
+    background: white;
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    /* Extend to at least full height of container, or content height */
+    min-height: 100%;
+    padding: 60px 80px;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    color: #1f2937;
+    line-height: 1.8;
+    font-size: 16px;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+    border-radius: 2px;
+    /* Prevent highlights from overflowing the paper horizontally, but allow vertical growth */
+    overflow-x: hidden;
+}
+
+.docTitle {
+    text-align: center;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    font-family: 'SimSun', serif;
+    color: #000;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+    line-height: 1.4;
+}
+
+.docParagraph {
+    margin-bottom: 6px;
+    text-align: justify;
+    /* Keep justify for formal look, but handle wrapping better */
+    font-family: 'SimSun', serif;
+    white-space: pre-wrap;
+    /* Use 'anywhere' to force break on long strings if needed */
+    overflow-wrap: anywhere;
+    word-break: normal;
+    /* Let browser handle CJK line breaks normally */
+    max-width: 100%;
+    hyphens: auto;
+    color: #333;
+    font-size: 18px;
+    line-height: 1.5;
+    /* Ensure padding/border doesn't increase width */
+    box-sizing: border-box;
+}
+
+.highlight {
+    background-color: rgba(254, 243, 199, 0.6);
+    border-bottom: 2px solid #f59e0b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.highlight:hover {
+    background-color: rgba(254, 243, 199, 1);
+}
+
+.highlight.active {
+    background-color: rgba(252, 165, 165, 0.3);
+    border-bottom-color: #ef4444;
+}
+
+/* Right: Review Panel */
+.reviewPanel {
+    width: clamp(340px, 30vw, 440px);
+    flex: 0 1 clamp(340px, 30vw, 440px);
+    background: white;
+    border-left: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.02);
+    z-index: 10;
+    min-height: 0;
+}
+
+.panelTabs {
+    display: flex;
+    border-bottom: 1px solid #f3f4f6;
+    padding: 0 16px;
+    background: white;
+}
+
+.tab {
+    flex: 1;
+    padding: 16px 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab:hover {
+    color: #374151;
+}
+
+.tab.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+    font-weight: 600;
+}
+
+.panelContent {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: #fafafa;
+    /* Slightly distinct background for content area */
+    min-height: 0;
+}
+
+/* Risk Cards */
+.riskList {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.riskCard {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.riskCard:hover {
+    border-color: #2563eb;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    transform: translateY(-1px);
+}
+
+.riskCard.active {
+    border-color: #ef4444;
+    background: #fffafa;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+}
+
+.cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.riskType {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ef4444;
+    background: #fee2e2;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.riskLevel {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.riskTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.riskSnippet {
+    font-size: 13px;
+    color: #4b5563;
+    background: #f3f4f6;
+    padding: 10px;
+    border-radius: 6px;
+    border-left: 3px solid #d1d5db;
+    margin-bottom: 0;
+    line-height: 1.5;
+    font-style: italic;
+}
+
+/* Detail View (Inside Panel) */
+.detailSection {
+    margin-bottom: 24px;
+}
+
+.detailTitle {
+    font-size: 12px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.detailContent {
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.6;
+}
+
+.lawBox {
+    background: #eff6ff;
+    border: 1px solid #dbeafe;
+    border-left: 4px solid #2563eb;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1e40af;
+    line-height: 1.7;
+    font-family: 'SimSun', serif;
+}
+
+.caseBox {
+    background: #fff7ed;
+    border: 1px solid #ffedd5;
+    border-left: 4px solid #ea580c;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #9a3412;
+    line-height: 1.7;
+    font-family: 'SimSun', serif;
+}
+
+.suggestionBox {
+    background: #f0fdf4;
+    border: 1px solid #dcfce7;
+    border-left: 4px solid #16a34a;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #166534;
+    line-height: 1.7;
+}
+
+.emptyState {
+    text-align: center;
+    color: #9ca3af;
+    margin-top: 40px;
+}
+
+@media (max-width: 1280px) {
+    .docPanel {
+        padding: 24px;
+    }
+
+    .docPaper {
+        max-width: 720px;
+        padding: 32px 40px;
+    }
+
+    .header {
+        padding: 0 16px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .main {
+        flex-direction: column;
+        overflow: visible;
+    }
+
+    .docPanel {
+        padding: 20px 16px;
+    }
+
+    .reviewPanel {
+        width: 100%;
+        max-width: none;
+        border-left: none;
+        border-top: 1px solid #e5e7eb;
+        flex: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .header {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 12px;
+    }
+
+    .fileInfo {
+        flex-wrap: wrap;
+    }
+
+    .docPaper {
+        padding: 24px 20px;
+    }
+}
+
+/* Markdown Tables */
+.markdownTableWrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.markdownTableWrapper table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 14px;
+    line-height: 1.5;
+    border: 1px solid #e5e7eb;
+}
+
+.markdownTableWrapper th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    color: #111827;
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.markdownTableWrapper td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    color: #374151;
+    vertical-align: top;
+    min-width: 120px;
+    /* Prevent squashing */
+}
+
+.markdownTableWrapper tr:last-child td {
+    border-bottom: none;
+}
+
+.markdownTableWrapper tr:nth-child(even) {
+    background-color: #fcfcfc;
+}
+
+/* HTML Content Wrapper (from mammoth.js) */
+.htmlContent {
+    font-family: 'SimSun', serif;
+    line-height: 1.8;
+    color: #333;
+}
+
+.htmlContent :global(p) {
+    margin-bottom: 8px;
+    text-indent: 2em;
+    /* 表格外的段落首行缩进两个字符 */
+    text-align: justify;
+}
+
+/* 表格内的段落和文本不要首行缩进，也不要两端对齐 */
+.htmlContent :global(table p),
+.htmlContent :global(table td),
+.htmlContent :global(table th) {
+    text-indent: 0 !important;
+    /* 表格内不缩进 */
+    text-align: left !important;
+    /* 左对齐，避免字间距过大 */
+}
+
+.htmlContent :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    border: 1px solid #000;
+    font-family: 'SimSun', serif;
+    table-layout: auto;
+    /* 自动布局，根据内容调整列宽 */
+}
+
+.htmlContent :global(table th),
+.htmlContent :global(table td) {
+    border: 1px solid #000;
+    padding: 10px 14px;
+    vertical-align: middle;
+    word-break: keep-all;
+    /* 不要在中文字符间断行 */
+    white-space: normal;
+    /* 允许正常换行 */
+    min-width: 60px;
+    /* 最小宽度，防止过窄 */
+    text-align: left;
+    /* 左对齐，避免两端对齐导致字间距过大 */
+}
+
+/* 表头居中 */
+.htmlContent :global(table th) {
+    text-align: center;
+    background-color: #9ca3af;
+    color: white;
+    font-weight: 600;
+}
+
+/* 数据单元格左对齐 */
+.htmlContent :global(table td) {
+    text-align: left;
+}
+
+/* 第一列通常是序号，居中显示 */
+.htmlContent :global(table td:first-child) {
+    text-align: center;
+}
+
+.htmlContent :global(table tr:nth-child(even)) {
+    background-color: #f9fafb;
+}
+
+.htmlContent :global(strong),
+.htmlContent :global(b) {
+    font-weight: 600;
+}
+
+/* 一级标题：如"第四部分 采购需求" */
+.htmlContent :global(h1) {
+    margin-top: 32px;
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* 二级标题：如"一、建设背景" */
+.htmlContent :global(h2) {
+    margin-top: 28px;
+    margin-bottom: 16px;
+    font-size: 20px;
+    font-weight: 600;
+    text-align: left;
+    /* 左对齐 */
+    text-indent: 2em;
+    /* 首行缩进 */
+    line-height: 1.5;
+}
+
+/* 三级标题：如"（一）项目概述" */
+.htmlContent :global(h3) {
+    margin-top: 20px;
+    margin-bottom: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: left;
+    text-indent: 2em;
+    line-height: 1.5;
+}
+
+/* 四级及以下标题 */
+.htmlContent :global(h4),
+.htmlContent :global(h5),
+.htmlContent :global(h6) {
+    margin-top: 16px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    text-indent: 2em;
+    line-height: 1.5;
+}
+
+/* Risk highlighting in HTML content */
+.htmlContent :global(mark.risk-highlight) {
+    background-color: rgba(252, 165, 165, 0.5);
+    padding: 2px 0;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.htmlContent :global(mark.risk-highlight:hover) {
+    background-color: rgba(252, 165, 165, 0.8);
+}

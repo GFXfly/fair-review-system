@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  fair-review-system:
+    container_name: fair-review-system
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3005:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/dev.db
+    volumes:
+      # Mount a local directory to /app/data inside the container to persist the SQLite DB
+      - ./data:/app/data

@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { const reg = await prisma.regulation.findUnique({ where: { id: 130 } }); console.log(reg); } main();

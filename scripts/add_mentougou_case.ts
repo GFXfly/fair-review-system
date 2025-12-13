@@ -1,0 +1,62 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+    console.log('开始添加门头沟区共享自行车案例...');
+
+    const caseData = {
+        title: '北京市市场监督管理局纠正门头沟区城市管理委员会滥用行政权力排除、限制竞争行为',
+        content: `2023年2月，北京市市场监督管理局依法对门头沟区城市管理委员会涉嫌滥用行政权力排除、限制竞争行为立案调查。
+
+经查，2021年4月，当事人制定《北京市门头沟区共享自行车发展方案》（以下简称《发展方案》），规定"准入一家共享自行车企业在我区进行市场化运营"，并于2021年7月通过招标确定某公司为唯一中标人。2021年12月，当事人与某公司签订《北京市门头沟区共享单车运营合作协议》（以下简称《合作协议》）。
+
+北京市市场监督管理局认为，当事人在没有法律、法规和国家政策依据的情况下，印发含有排除、限制竞争内容的《发展方案》并通过招标确定某公司在辖区内独家提供共享自行车服务的行为，排除、限制了其他具有合格资质和服务能力的经营者进入该区域市场，妨碍了消费者的自由选择权，违反了《中华人民共和国反垄断法》第三十九条"行政机关和法律、法规授权的具有管理公共事务职能的组织不得滥用行政权力，限定或者变相限定单位或者个人经营、购买、使用其指定的经营者提供的商品。"和第四十五条"行政机关和法律、法规授权的具有管理公共事务职能的组织不得滥用行政权力，制定含有排除、限制竞争内容的规定"的规定，构成滥用行政权力排除、限制竞争行为。
+
+调查期间，当事人主动整改，废止了《合作协议》，并通过政府网站对外发布废止公告。当事人表示将严格按照市场化、法制化的原则开展相关工作，公平公正对待所有市场主体。`,
+        province: '北京市',
+        publishDate: '2024-01-05',
+        violationType: '滥用行政权力排除、限制竞争',
+        result: '已整改',
+        documentName: '《北京市门头沟区共享自行车发展方案》',
+        documentOrg: '门头沟区城市管理委员会',
+        violationClause: '《中华人民共和国反垄断法》第三十九条、第四十五条',
+        violationDetail: '在没有法律、法规和国家政策依据的情况下，印发含有排除、限制竞争内容的规定，通过招标确定独家服务商',
+    };
+
+    try {
+        // 检查是否已存在相同标题的案例
+        const existing = await prisma.case.findFirst({
+            where: {
+                title: caseData.title,
+            },
+        });
+
+        if (existing) {
+            console.log('案例已存在，正在更新...');
+            const updated = await prisma.case.update({
+                where: { id: existing.id },
+                data: caseData,
+            });
+            console.log('✅ 案例更新成功:', updated.title);
+        } else {
+            console.log('正在添加新案例...');
+            const created = await prisma.case.create({
+                data: caseData,
+            });
+            console.log('✅ 案例添加成功:', created.title);
+        }
+    } catch (error) {
+        console.error('❌ 操作失败:', error);
+        throw error;
+    }
+}
+
+main()
+    .catch((e) => {
+        console.error(e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });

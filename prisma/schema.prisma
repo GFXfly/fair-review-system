@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 法规库
+model Regulation {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String   // 全文或摘要
+  level       String   // 效力级别：法律、行政法规、部门规章、地方性法规
+  department  String?  // 发布部门
+  publishDate String?  // 发布日期
+  category    String?  // 分类标签
+  embedding   String?  // 向量数据 (JSON String)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([level])
+  @@index([category])
+}
+
+// 通报文件（用于聚合案例）
+model Report {
+  id          Int      @id @default(autoincrement())
+  title       String   // 通报标题
+  department  String   // 发布机构
+  publishDate String?  // 发布日期
+  province    String?  // 省份/地区
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  cases       Case[]   // 关联的案例
+}
+
+// 典型案例库
+model Case {
+  id              Int      @id @default(autoincrement())
+  title           String
+  content         String   // 案情摘要
+  violationType   String   // 违规类型：指定交易、歧视性补贴、排斥外地经营者等
+  result          String   // 处理结果：纠正、废止、罚款
+  publishDate     String?
+  province        String?  // 省份/地区
+  reportId        Int?     // 关联的通报ID
+  report          Report?  @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  // 详细信息字段（用于左侧目录展示）
+  violationClause String?  // 违反条款
+  documentName    String?  // 发文名称
+  documentOrg     String?  // 发文机关
+  violationDetail String?  // 违规内容
+  legalScope      String?  // 法规范围
+  embedding       String?  // 向量数据 (JSON String)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([violationType])
+  @@index([province])
+  @@index([reportId])
+}
+
+// 审查记录
+model ReviewRecord {
+  id        String       @id @default(cuid()) // 使用 CUID 作为 ID，方便 URL 路由
+  fileName  String
+  fileSize  Int?
+  status    String       @default("pending") // pending, completed, failed
+  riskCount Int          @default(0)
+  summary   String?      // 全文摘要
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  userId    Int?         // 提交用户ID
+  user      User?        @relation(fields: [userId], references: [id])
+
+  risks     ReviewRisk[]
+
+  @@index([userId, status])
+  @@index([createdAt(sort: Desc)])
+}
+
+// 审查发现的风险点
+model ReviewRisk {
+  id          Int          @id @default(autoincrement())
+  reviewId    String
+  review      ReviewRecord @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  
+  level       String       // high, medium, low
+  type        String       // 风险类型
+  title       String       // 风险标题
+  description String       // 详细描述
+  quote       String?      // 原文引用
+  location    String?      // 在文档中的位置信息
+  suggestion  String?      // 修改建议
+  
+  createdAt   DateTime     @default(now())
+}
+
+// 用户系统
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  password   String
+  name       String
+  department String?
+  role       String   @default("user") // admin, user
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  reviews    ReviewRecord[]
+  auditLogs  AuditLog[]
+}
+
+// 审计日志
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     // 操作用户ID（登录失败时可能为null）
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action      String   // 操作类型：login, logout, upload_file, create_user, change_password等
+  resource    String?  // 操作的资源（如文件名、用户名等）
+  status      String   // success, failure
+  ipAddress   String?  // 客户端IP地址
+  userAgent   String?  // 浏览器信息
+  details     String?  // JSON格式的详细信息
+  errorMessage String? // 失败时的错误信息
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}

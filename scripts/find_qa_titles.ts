@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { const regs = await prisma.regulation.findMany({ where: { title: { contains: '答疑' } }, select: { title: true, id: true } }); console.log(regs); } main();

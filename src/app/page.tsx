@@ -1,66 +1,130 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
 
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import styles from './page.module.css';
+import RiskRadar from '@/components/RiskRadar';
+
+export default function LoginPage() {
+    const router = useRouter();
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
+
+            if (res.ok) {
+                router.push('/dashboard');
+            } else {
+                const data = await res.json();
+                setError(data.error || '登录失败');
+            }
+        } catch (err) {
+            setError('网络错误，请稍后重试');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <main className={styles.container}>
+            {/* Left Side: The Sentinel */}
+            <div className={styles.leftPanel}>
+                <div className={styles.branding}>
+                    <h1>临安区公平竞争审查 · 风险态势感知平台</h1>
+                    <p>FAIR COMPETITION RISK MONITOR</p>
+                </div>
+
+                <div className={styles.statsRow}>
+                    <div className={styles.statCard}>
+                        <span className={styles.statLabel}>📡 今日全网扫描</span>
+                        <span className={styles.statValue}>1,208 条</span>
+                    </div>
+                    <div className={`${styles.statCard} ${styles.alertCard}`}>
+                        <span className={styles.statLabel}>🚨 拦截疑似风险</span>
+                        <span className={styles.statValue}>12 项</span>
+                    </div>
+                </div>
+
+                <div className={styles.radarWrapper}>
+                    <RiskRadar variant="dark" />
+                </div>
+
+                <div className={styles.footer}>
+                    <div style={{ marginBottom: '8px' }}>数据来源：杭州市公共资源交易平台、招必得、浙江政府采购网 | 更新于：刚刚</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                            浙ICP备2025160577号-5
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Side: Login Form */}
+            <div className={styles.rightPanel}>
+                <div className={styles.loginBox}>
+                    <div className={styles.logoPlaceholder}>
+                        <div className={styles.logoIcon}>⚖️</div>
+                        <h2>审查员登录</h2>
+                    </div>
+
+                    <form className={styles.form} onSubmit={handleLogin}>
+                        {error && <div style={{
+                            color: '#ef4444',
+                            fontSize: '13px',
+                            background: '#fef2f2',
+                            padding: '8px',
+                            borderRadius: '6px',
+                            marginBottom: '10px'
+                        }}>{error}</div>}
+
+                        <div className={styles.inputGroup}>
+                            <label>用户名</label>
+                            <input
+                                type="text"
+                                placeholder="请输入用户名"
+                                className={styles.input}
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <div className={styles.inputGroup}>
+                            <label>密码</label>
+                            <input
+                                type="password"
+                                placeholder="请输入密码"
+                                className={styles.input}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            className={styles.loginBtn}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? '登录中...' : '登录系统'}
+                        </button>
+
+
+                    </form>
+                </div>
+            </div>
+        </main>
+    );
 }

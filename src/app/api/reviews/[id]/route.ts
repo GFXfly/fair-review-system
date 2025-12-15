@@ -31,22 +31,26 @@ export async function GET(
         // Since we don't store full text in DB currently, we might need to handle that.
         // However, the user just wants to see the risks.
 
+
+        // @ts-ignore
         const responseData = {
             id: review.id,
-            fileName: review.fileName, // Add file name
-            text: "",
+            fileName: review.fileName,
+            text: (review as any).text || "",  // Return stored text
+            html: (review as any).html || "",  // Return stored HTML for table rendering
             gatekeeper: {
                 category: (review.summary && review.summary.includes('文件类型：')) ? review.summary.split('。')[0].replace('文件类型：', '') : '未知',
                 reason: review.summary || '无摘要',
                 needs_review: review.status !== 'ignored'
             },
-            auditor: (review as any).risks.map((r: any) => ({
+            risks: (review as any).risks.map((r: any) => ({
                 id: r.id.toString(),
                 risk_level: r.level as 'High' | 'Medium' | 'Low',
                 description: r.description,
                 location: r.location,
                 suggestion: r.suggestion,
-                violated_law: null // DB doesn't have this yet, maybe extracted from description later?
+                violated_law: null,
+                reference: null
             }))
         };
 

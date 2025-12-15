@@ -71,7 +71,14 @@ export default function AdminPage() {
 
     const fetchUserList = () => {
         fetch('/api/users')
-            .then(res => res.json())
+            .then(async res => {
+                if (res.status === 401) {
+                    alert('登录已过期，请重新登录');
+                    router.push('/login'); // Assuming login page is at /login or /
+                    return [];
+                }
+                return res.json();
+            })
             .then(data => {
                 if (Array.isArray(data)) {
                     setUsers(data);
@@ -124,6 +131,29 @@ export default function AdminPage() {
             }
         } catch (err) {
             console.error('Reset password error:', err);
+            alert('操作失败，请重试');
+        }
+    };
+
+    const handleDeleteUser = async (userId: number, username: string) => {
+        if (!confirm(`⚠️ 警告：确定要彻底删除用户 "${username}" 吗？此操作无法撤销！`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/users/${userId}`, {
+                method: 'DELETE',
+            });
+
+            if (res.ok) {
+                alert(`用户 "${username}" 已成功删除`);
+                fetchUserList();
+            } else {
+                const data = await res.json();
+                alert('删除失败: ' + (data.error || '未知错误'));
+            }
+        } catch (err) {
+            console.error('Delete user error:', err);
             alert('操作失败，请重试');
         }
     };
@@ -280,7 +310,12 @@ export default function AdminPage() {
                                                         >
                                                             重置密码
                                                         </button>
-                                                        <button style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => alert('暂未实现删除功能')}>删除</button>
+                                                        <button
+                                                            style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                                                            onClick={() => handleDeleteUser(user.id, user.username)}
+                                                        >
+                                                            删除
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))

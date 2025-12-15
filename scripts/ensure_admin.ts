@@ -1,44 +1,58 @@
-
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log("Ensuring admin user has correct role...");
+    console.log("Ensuring admin users...");
 
-    // 1. Try to find user 'admin'
-    const adminUser = await prisma.user.findFirst({
-        where: { username: 'admin' }
-    });
-
-    if (adminUser) {
-        console.log(`Found user 'admin'. Current role: ${adminUser.role}`);
-        if (adminUser.role !== 'admin') {
-            await prisma.user.update({
-                where: { id: adminUser.id },
-                data: { role: 'admin' }
-            });
-            console.log("Updated 'admin' role to 'admin'.");
-        } else {
-            console.log("'admin' is already an admin.");
+    const usersToEnsure = [
+        {
+            username: 'admin',
+            password: 'admin123',
+            name: 'System Administrator',
+            department: 'Information Center'
+        },
+        {
+            username: 'Felix',
+            password: 'GFX150602',
+            name: 'Felix Admin',
+            department: 'Super Admin Dept'
         }
-    } else {
-        console.log("User 'admin' not found. Creating...");
-        // Create default admin if not exists
-        await prisma.user.create({
-            data: {
-                username: 'admin',
-                password: 'admin123', // Weak password, but ensure it exists.
-                name: 'System Administrator',
-                role: 'admin',
-                department: 'Information Center'
-            }
-        });
-        console.log("Created 'admin' user with password 'admin123'");
-    }
+    ];
 
-    // 2. Also check if there is a 'root' user or similar? 
-    // Just 'admin' for now.
+    for (const u of usersToEnsure) {
+        console.log(`Processing user: ${u.username}`);
+        const existingUser = await prisma.user.findUnique({
+            where: { username: u.username }
+        });
+
+        const hashedPassword = await bcrypt.hash(u.password, 10);
+
+        if (existingUser) {
+            console.log(`User ${u.username} exists. Updating role and password...`);
+            await prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                    role: 'admin',
+                    password: hashedPassword // Reset password to known value
+                }
+            });
+            console.log(`User ${u.username} updated.`);
+        } else {
+            console.log(`User ${u.username} not found. Creating...`);
+            await prisma.user.create({
+                data: {
+                    username: u.username,
+                    password: hashedPassword,
+                    name: u.name,
+                    role: 'admin',
+                    department: u.department
+                }
+            });
+            console.log(`User ${u.username} created.`);
+        }
+    }
 }
 
 main()

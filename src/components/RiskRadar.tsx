@@ -20,31 +20,31 @@ const MOCK_ALERTS: RiskAlert[] = [
         id: '1',
         timestamp: '10:42',
         level: 'high',
-        department: '[教育局]',
-        message: '中小学食堂采购项目',
+        department: '[某单位]',
+        message: '食堂采购项目',
         detail: '疑似包含本地化配送服务加分项'
     },
     {
         id: '2',
         timestamp: '10:35',
         level: 'medium',
-        department: '[住建局]',
+        department: '[某单位]',
         message: '某老旧小区改造招标',
-        detail: '疑似设定过高资质门槛（双甲级）'
+        detail: '疑似设定过高资质门槛'
     },
     {
         id: '3',
         timestamp: '10:15',
         level: 'high',
-        department: '[开发区]',
-        message: '关于引入XX新能源项目的协议',
-        detail: '疑似包含土地出让金全额返还承诺'
+        department: '[某单位]',
+        message: '关于引入XX项目的协议',
+        detail: '疑似包含财政补贴承诺'
     },
     {
         id: '4',
         timestamp: '09:50',
         level: 'safe',
-        department: '[卫健委]',
+        department: '[某单位]',
         message: '医疗器械采购公告',
         detail: '经审查后已修正'
     },

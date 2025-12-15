@@ -363,7 +363,7 @@ function DashboardContent() {
             <header className={styles.navbar}>
                 <div className={styles.logoArea}>
                     <div className={styles.logoIcon}>⚖️</div>
-                    <div className={styles.logoText}>公平竞争审查系统 <span className={styles.version}>v2.0</span></div>
+                    <div className={styles.logoText}>公平竞争审查系统 <span className={styles.version}>v1.1</span></div>
                 </div>
 
                 <nav className={styles.navLinks}>

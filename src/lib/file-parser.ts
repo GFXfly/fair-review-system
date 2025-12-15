@@ -75,6 +75,35 @@ export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
                 // Add basic styling to tables for better display
                 displayHtml = displayHtml.replace(/<table>/g, '<table class="doc-table">');
 
+                // === ENHANCED HEADINGS DETECTION (ROBUST) ===
+                // Instead of matching complex HTML strings, we iterate all paragraphs,
+                // check their PLAIN TEXT content, and convert if they match patterns.
+
+                displayHtml = displayHtml.replace(/<p\b([^>]*)>([\s\S]*?)<\/p>/gi, (match, attributes, content) => {
+                    // 1. Extract plain text to check patterns ignoring tags (like <strong>, <span>)
+                    const plainText = content.replace(/<[^>]+>/g, '').trim();
+
+                    // 2. Level 1 Pattern: "一、", "二、"
+                    // Must be short (< 50 chars) to avoid matching long paragraphs that happen to start with these.
+                    if (/^[一二三四五六七八九十]+、/.test(plainText) && plainText.length < 50) {
+                        // Convert to <h2> (Left aligned via CSS), dropping original <p> attributes (like center)
+                        return `<h2>${content}</h2>`;
+                    }
+
+                    // 3. Level 2 Pattern: "（一）", "(一)"
+                    if (/^[（(][一二三四五六七八九十]+[）)]/.test(plainText) && plainText.length < 80) {
+                        return `<h3>${content}</h3>`;
+                    }
+
+                    // 4. Level 3 Pattern: "1.", "1、"
+                    if (/^[0-9]+[、.]/.test(plainText) && plainText.length < 100) {
+                        return `<h4>${content}</h4>`;
+                    }
+
+                    // No match, keep original paragraph
+                    return match;
+                });
+
                 // Decode entities in HTML version too
                 displayHtml = displayHtml
                     .replace(/&nbsp;/g, " ")

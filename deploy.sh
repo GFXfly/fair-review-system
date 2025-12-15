@@ -21,7 +21,9 @@ echo ".next/*" >> .deployignore
 echo ".git/*" >> .deployignore
 echo ".env.local" >> .deployignore
 echo "$LOCAL_ZIP" >> .deployignore
-echo "data/*" >> .deployignore 
+echo "data/*" >> .deployignore
+echo "prisma/*.db" >> .deployignore
+echo "prisma/dev.db" >> .deployignore 
 
 zip -r $LOCAL_ZIP . -x@.deployignore
 rm .deployignore

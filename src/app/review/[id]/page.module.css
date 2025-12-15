@@ -481,128 +481,100 @@
     background-color: #fcfcfc;
 }
 
-/* HTML Content Wrapper (from mammoth.js) */
+/* HTML Content Wrapper (Public Document Standard) */
 .htmlContent {
-    font-family: 'SimSun', serif;
+    font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
+    font-size: 16pt;
+    /* 三号 */
     line-height: 1.8;
     color: #333;
 }
 
 .htmlContent :global(p) {
-    margin-bottom: 8px;
+    margin-bottom: 0.5em;
     text-indent: 2em;
-    /* 表格外的段落首行缩进两个字符 */
+    /* 首行缩进2字符 */
     text-align: justify;
+    min-height: 1.5em;
 }
 
-/* 表格内的段落和文本不要首行缩进，也不要两端对齐 */
+/* 表格内样式重置：不缩进，左对齐，字号可稍小 */
+.htmlContent :global(table) {
+    margin: 1em 0;
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "SimSun", "Songti SC", "宋体", serif;
+    /* 表格通常用宋体 */
+    font-size: 14pt;
+    /* 四号或小四，比正文稍小 */
+}
+
 .htmlContent :global(table p),
 .htmlContent :global(table td),
 .htmlContent :global(table th) {
     text-indent: 0 !important;
-    /* 表格内不缩进 */
     text-align: left !important;
-    /* 左对齐，避免字间距过大 */
+    margin-bottom: 0;
+    line-height: 1.4;
 }
 
-.htmlContent :global(table) {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 16px 0;
-    font-size: 14px;
-    line-height: 1.5;
-    border: 1px solid #000;
-    font-family: 'SimSun', serif;
-    table-layout: auto;
-    /* 自动布局，根据内容调整列宽 */
-}
+/* --- 公文标题样式规范 --- */
 
-.htmlContent :global(table th),
-.htmlContent :global(table td) {
-    border: 1px solid #000;
-    padding: 10px 14px;
-    vertical-align: middle;
-    word-break: keep-all;
-    /* 不要在中文字符间断行 */
-    white-space: normal;
-    /* 允许正常换行 */
-    min-width: 60px;
-    /* 最小宽度，防止过窄 */
-    text-align: left;
-    /* 左对齐，避免两端对齐导致字间距过大 */
-}
-
-/* 表头居中 */
-.htmlContent :global(table th) {
-    text-align: center;
-    background-color: #9ca3af;
-    color: white;
-    font-weight: 600;
-}
-
-/* 数据单元格左对齐 */
-.htmlContent :global(table td) {
-    text-align: left;
-}
-
-/* 第一列通常是序号，居中显示 */
-.htmlContent :global(table td:first-child) {
-    text-align: center;
-}
-
-.htmlContent :global(table tr:nth-child(even)) {
-    background-color: #f9fafb;
-}
-
-.htmlContent :global(strong),
-.htmlContent :global(b) {
-    font-weight: 600;
-}
-
-/* 一级标题：如"第四部分 采购需求" */
+/* 文档大标题：方正小标宋，小二号，居中 */
 .htmlContent :global(h1) {
-    margin-top: 32px;
-    margin-bottom: 20px;
-    font-size: 24px;
-    font-weight: 700;
+    font-family: "FZXiaoBiaoSong-B05S", "方正小标宋简体", "SimSun", serif;
+    font-size: 18pt;
+    /* 小二号 */
+    font-weight: normal;
+    /* 小标宋本身够粗，不需要bold */
     text-align: center;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    text-indent: 0;
     line-height: 1.5;
 }
 
-/* 二级标题：如"一、建设背景" */
+/* 一级标题（一、）：黑体，三号，首行缩进 */
 .htmlContent :global(h2) {
-    margin-top: 28px;
-    margin-bottom: 16px;
-    font-size: 20px;
-    font-weight: 600;
-    text-align: left;
-    /* 左对齐 */
+    font-family: "SimHei", "STHeiti", "黑体", sans-serif;
+    font-size: 16pt;
+    /* 三号 */
+    font-weight: normal;
+    /* 黑体本身较粗 */
     text-indent: 2em;
-    /* 首行缩进 */
+    text-align: left;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
     line-height: 1.5;
 }
 
-/* 三级标题：如"（一）项目概述" */
+/* 二级标题（（一））：楷体，三号，首行缩进 */
 .htmlContent :global(h3) {
-    margin-top: 20px;
-    margin-bottom: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    text-align: left;
+    font-family: "KaiTi", "STKaiti", "楷体", "KaiTi_GB2312", serif;
+    font-size: 16pt;
+    /* 三号 */
+    font-weight: normal;
+    /* 楷体 */
     text-indent: 2em;
+    text-align: left;
+    margin-top: 1em;
+    margin-bottom: 0.6em;
     line-height: 1.5;
 }
 
-/* 四级及以下标题 */
+/* 三级标题（1.）：仿宋加粗，三号，首行缩进 */
 .htmlContent :global(h4),
 .htmlContent :global(h5),
 .htmlContent :global(h6) {
-    margin-top: 16px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    text-align: left;
+    font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
+    font-size: 16pt;
+    /* 三号 */
+    font-weight: 700;
+    /* 加粗 */
     text-indent: 2em;
+    text-align: left;
+    margin-top: 0.8em;
+    margin-bottom: 0.5em;
     line-height: 1.5;
 }
 

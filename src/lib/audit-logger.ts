@@ -22,6 +22,7 @@ export type AuditAction =
     | 'view_review'             // 查看审查结果
     | 'export_review'           // 导出审查报告
     | 'delete_review'           // 删除审查记录
+    | 'delete_user'             // 删除用户
     | 'access_denied';          // 访问被拒绝
 
 export type AuditStatus = 'success' | 'failure';

@@ -42,8 +42,8 @@ export default function LoginPage() {
             {/* Left Side: The Sentinel */}
             <div className={styles.leftPanel}>
                 <div className={styles.branding}>
-                    <h1>临安区公平竞争审查 · 风险态势感知平台</h1>
-                    <p>FAIR COMPETITION RISK MONITOR</p>
+                    <h1>临安区公平竞争审查辅助平台</h1>
+                    <p>FAIR COMPETITION REVIEW ASSISTANCE PLATFORM</p>
                 </div>
 
                 <div className={styles.statsRow}>

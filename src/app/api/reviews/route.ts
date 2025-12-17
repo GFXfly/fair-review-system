@@ -1,46 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
     try {
-        const cookieStore = await cookies();
-        const userIdStr = cookieStore.get('userId')?.value;
-        const userId = userIdStr ? parseInt(userIdStr) : null;
-
         const { searchParams } = new URL(req.url);
         const mode = searchParams.get('mode');
 
-        console.log(`[API_REVIEWS] GET request. UserId: ${userId}, Mode: ${mode}`);
+        // Use the unified auth helper to get the current session user
+        const user = await getCurrentUser();
+
+        console.log(`[API_REVIEWS] GET request. User: ${user?.username} (${user?.id}), Role: ${user?.role}, Mode: ${mode}`);
+
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         let whereClause: any = {};
 
         if (mode === 'admin') {
             // Check if user is actually admin
-            if (!userId) {
-                console.log('[API_REVIEWS] Admin access denied: No userId');
-                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-            }
-            const user = await prisma.user.findUnique({ where: { id: userId } });
-            console.log(`[API_REVIEWS] Admin check. User found: ${user?.username}, Role: ${user?.role}`);
-
-            if (!user || user.role !== 'admin') {
+            if (user.role !== 'admin') {
                 console.log('[API_REVIEWS] Admin access denied: Not admin');
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
+            console.log(`[API_REVIEWS] Admin access granted for ${user.username}`);
             // Admin sees all
             whereClause = {};
         } else {
             // Normal user: sees only their own
-            if (!userId) {
-                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-            }
-            whereClause = { userId: userId };
+            whereClause = { userId: user.id };
         }
 
+        const isExport = searchParams.get('export') === 'true';
+
         const reviews = await prisma.reviewRecord.findMany({
-            take: 50, // Increased limit for admin visibility
+            take: isExport ? undefined : 50, // No limit for export, otherwise 50
             where: whereClause,
             orderBy: {
                 createdAt: 'desc'

@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
     try {
         const { currentPassword, newPassword } = await req.json();
-        const cookieStore = await cookies();
-        const userIdStr = cookieStore.get('userId')?.value;
-        const userId = userIdStr ? parseInt(userIdStr) : null;
+        const currentUser = await getCurrentUser();
 
-        if (!userId) {
+        if (!currentUser) {
             return NextResponse.json({ error: '未登录' }, { status: 401 });
         }
+
+        const userId = currentUser.id;
 
         if (!newPassword || newPassword.length < 6) {
             await logFailure('change_password', '新密码不符合要求', userId, undefined, undefined, req);
@@ -60,9 +60,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         console.error('Change password error:', error);
 
-        const cookieStore = await cookies();
-        const userIdStr = cookieStore.get('userId')?.value;
-        const userId = userIdStr ? parseInt(userIdStr) : null;
+        const userId = null;
 
         await logFailure('change_password', '系统错误', userId, undefined, { error: String(error) }, req);
 

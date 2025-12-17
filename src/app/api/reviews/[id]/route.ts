@@ -1,5 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+
+export async function DELETE(
+    req: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
+    const { id } = await context.params;
+
+    try {
+        const user = await getCurrentUser();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (!id) {
+            return NextResponse.json({ error: 'Review ID is required' }, { status: 400 });
+        }
+
+        // Check if review exists and permission
+        const review = await prisma.reviewRecord.findUnique({
+            where: { id: id }
+        });
+
+        if (!review) {
+            return NextResponse.json({ error: 'Review record not found' }, { status: 404 });
+        }
+
+        // Only admin or owner can delete
+        if (user.role !== 'admin' && review.userId !== user.id) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        // Delete risks first (if not cascading) - strictly speaking prisma handles cascade if configured,
+        // but explicit delete is safer if schema is unknown.
+        // Assuming cascade delete is set up on foreign key or we just delete the record if relation is mandatory.
+        // Let's try deleting the record directly.
+        await prisma.reviewRisk.deleteMany({
+            where: { reviewId: id }
+        });
+
+        await prisma.reviewRecord.delete({
+            where: { id: id }
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Failed to delete review:', error);
+        return NextResponse.json({ error: 'Failed to delete review' }, { status: 500 });
+    }
+}
 
 export async function GET(
     req: NextRequest,

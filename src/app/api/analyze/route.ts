@@ -6,10 +6,10 @@ import { runDefender, runJudge } from '@/lib/agents/debate';
 import { runGuidanceCounselor } from '@/lib/agents/guidance_counselor';
 import { extractTextFromFile } from '@/lib/file-parser';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
 import { TextChunker } from '@/lib/text-utils';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
     let userId: number | null = null;
@@ -20,9 +20,8 @@ export async function POST(req: NextRequest) {
         const file = formData.get('file') as File;
 
         // Get user from cookie
-        const cookieStore = await cookies();
-        const userIdStr = cookieStore.get('userId')?.value;
-        userId = userIdStr ? parseInt(userIdStr) : null;
+        const user = await getCurrentUser();
+        userId = user ? user.id : null;
 
         if (!file) {
             await logFailure('upload_file', '未提供文件', userId, undefined, undefined, req);

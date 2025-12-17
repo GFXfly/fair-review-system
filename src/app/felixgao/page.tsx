@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 
 interface User {
@@ -39,9 +39,26 @@ interface ReviewRecord {
 </thead>
 
 export default function AdminPage() {
+    return (
+        <React.Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}>Loading admin dashboard...</div>}>
+            <AdminContent />
+        </React.Suspense>
+    );
+}
+
+function AdminContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState('monitor'); // monitor, users, reviews, config
     const [realReviewRecords, setRealReviewRecords] = useState<ReviewRecord[]>([]);
+    const [stats, setStats] = useState({
+        totalFiles: 0,
+        completedFiles: 0,
+        failedFiles: 0,
+        totalRisks: 0,
+        ignoredFiles: 0,
+        activeUsers: 0
+    });
     const [users, setUsers] = useState<User[]>([]);
 
     // User Modal State
@@ -54,8 +71,25 @@ export default function AdminPage() {
         role: 'user'
     });
 
+    // Sync state with URL params on mount/update
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && ['monitor', 'users', 'reviews', 'config'].includes(tab)) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
+
+    // Handle tab change with URL update
+    const handleTabChange = (tab: string) => {
+        setActiveTab(tab);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('tab', tab);
+        router.push(`?${params.toString()}`);
+    };
+
     useEffect(() => {
         if (activeTab === 'reviews') {
+            // Fetch List
             fetch('/api/reviews?mode=admin')
                 .then(res => res.json())
                 .then(data => {
@@ -64,6 +98,17 @@ export default function AdminPage() {
                     }
                 })
                 .catch(err => console.error('Failed to fetch reviews:', err));
+
+            // Fetch Stats
+            fetch('/api/reviews/stats')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && !data.error) {
+                        setStats(data);
+                    }
+                })
+                .catch(err => console.error('Failed to fetch stats:', err));
+
         } else if (activeTab === 'users') {
             fetchUserList();
         }
@@ -74,7 +119,7 @@ export default function AdminPage() {
             .then(async res => {
                 if (res.status === 401) {
                     alert('登录已过期，请重新登录');
-                    router.push('/login'); // Assuming login page is at /login or /
+                    router.push('/login');
                     return [];
                 }
                 return res.json();
@@ -158,6 +203,69 @@ export default function AdminPage() {
         }
     };
 
+    const handleDeleteReview = async (id: string) => {
+        if (!confirm('确定要删除这条审查记录吗？此操作无法撤销。')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/reviews/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setRealReviewRecords(prev => prev.filter(r => r.id !== id));
+            } else {
+                const data = await res.json();
+                alert(data.error || '删除失败');
+            }
+        } catch (error) {
+            console.error('Delete failed:', error);
+            alert('删除失败，请重试');
+        }
+    };
+
+    // CSV Export
+    const handleExportValues = async () => {
+        try {
+            const res = await fetch('/api/reviews?mode=admin&export=true');
+            if (!res.ok) throw new Error('Export failed');
+
+            const records: ReviewRecord[] = await res.json();
+
+            // Convert to CSV
+            const headers = ['文件名称', '提交账号', '所属部门', '审查状态', '风险数', '摘要', '提交时间'];
+            const csvRows = [headers.join(',')];
+
+            records.forEach(r => {
+                const row = [
+                    `"${r.fileName.replace(/"/g, '""')}"`,
+                    `"${r.user?.name || '未知'}"`,
+                    `"${r.user?.department || '-'}"`,
+                    `"${r.status === 'completed' ? '已完成' : r.status === 'ignored' ? '无需审查' : '失败'}"`,
+                    r.riskCount,
+                    `"${(r.summary || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+                    `"${new Date(r.createdAt).toLocaleString()}"`
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            const csvContent = '\uFEFF' + csvRows.join('\n'); // Add BOM for Excel
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `审计报表_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (error) {
+            console.error('Export error:', error);
+            alert('导出失败，请重试');
+        }
+    };
+
     return (
         <div className={styles.container}>
             <header className={styles.header}>
@@ -171,25 +279,25 @@ export default function AdminPage() {
                 <aside className={styles.sidebar}>
                     <div
                         className={`${styles.menuItem} ${activeTab === 'monitor' ? styles.menuItemActive : ''}`}
-                        onClick={() => setActiveTab('monitor')}
+                        onClick={() => handleTabChange('monitor')}
                     >
                         <span>📊</span> 态势感知
                     </div>
                     <div
                         className={`${styles.menuItem} ${activeTab === 'users' ? styles.menuItemActive : ''}`}
-                        onClick={() => setActiveTab('users')}
+                        onClick={() => handleTabChange('users')}
                     >
                         <span>👥</span> 用户管理
                     </div>
                     <div
                         className={`${styles.menuItem} ${activeTab === 'reviews' ? styles.menuItemActive : ''}`}
-                        onClick={() => setActiveTab('reviews')}
+                        onClick={() => handleTabChange('reviews')}
                     >
                         <span>📑</span> 审计日志
                     </div>
                     <div
                         className={`${styles.menuItem} ${activeTab === 'config' ? styles.menuItemActive : ''}`}
-                        onClick={() => setActiveTab('config')}
+                        onClick={() => handleTabChange('config')}
                     >
                         <span>⚙️</span> 系统配置
                     </div>
@@ -329,9 +437,40 @@ export default function AdminPage() {
                     {activeTab === 'reviews' && (
                         <>
                             <h1 className={styles.sectionTitle}>审计日志概览</h1>
+
+                            {/* Stats Dashboard */}
+                            <div className={styles.statGrid} style={{ marginBottom: '30px', gridTemplateColumns: 'repeat(5, 1fr)' }}>
+                                <div className={styles.statCard}>
+                                    <span className={styles.statLabel}>总审查文件数</span>
+                                    <span className={styles.statValue}>{stats.totalFiles}</span>
+                                </div>
+                                <div className={styles.statCard}>
+                                    <span className={styles.statLabel}>提交单位/用户数</span>
+                                    <span className={styles.statValue} style={{ color: '#2563eb' }}>{stats.activeUsers || 0}</span>
+                                </div>
+                                <div className={styles.statCard}>
+                                    <span className={styles.statLabel}>发现风险点总数</span>
+                                    <span className={styles.statValue} style={{ color: '#ef4444' }}>{stats.totalRisks}</span>
+                                </div>
+                                <div className={styles.statCard}>
+                                    <span className={styles.statLabel}>已完成审查</span>
+                                    <span className={styles.statValue} style={{ color: '#10b981' }}>{stats.completedFiles}</span>
+                                </div>
+                                <div className={styles.statCard}>
+                                    <span className={styles.statLabel}>无需审查文件</span>
+                                    <span className={styles.statValue} style={{ color: '#6b7280' }}>{stats.ignoredFiles}</span>
+                                </div>
+                            </div>
+
                             <div className={styles.card}>
                                 <div style={{ marginBottom: '16px', display: 'flex', gap: '10px' }}>
-                                    <button className={styles.actionBtn} style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db' }}>导出审计报表</button>
+                                    <button
+                                        className={styles.actionBtn}
+                                        style={{ background: 'white', color: '#374151', border: '1px solid #d1d5db' }}
+                                        onClick={handleExportValues}
+                                    >
+                                        📤 导出审计报表
+                                    </button>
                                 </div>
                                 <table className={styles.table}>
                                     <thead>
@@ -385,10 +524,16 @@ export default function AdminPage() {
                                                     </td>
                                                     <td>
                                                         <button
-                                                            style={{ color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}
-                                                            onClick={() => router.push(`/review/${record.id}`)}
+                                                            style={{ color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', marginRight: '8px' }}
+                                                            onClick={() => router.push(`/review/${record.id}?backUrl=${encodeURIComponent('/felixgao?tab=reviews')}`)}
                                                         >
                                                             查看
+                                                        </button>
+                                                        <button
+                                                            style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                                                            onClick={() => handleDeleteReview(record.id)}
+                                                        >
+                                                            删除
                                                         </button>
                                                     </td>
                                                 </tr>

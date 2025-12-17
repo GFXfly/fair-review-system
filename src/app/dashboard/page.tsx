@@ -142,6 +142,8 @@ function DashboardContent() {
 
     const [reviewRecords, setReviewRecords] = useState<any[]>([]);
 
+
+
     const [user, setUser] = useState<any>(null);
 
     // Check Auth
@@ -201,10 +203,21 @@ function DashboardContent() {
 
     const fetchReviewRecords = async () => {
         try {
-            const res = await fetch('/api/reviews', { cache: 'no-store' });
+            // If user is admin, fetch all records; otherwise fetch only user's own records
+            const url = user?.role === 'admin' ? '/api/reviews?mode=admin' : '/api/reviews';
+            console.log(`[Dashboard] Fetching reviews. User role: ${user?.role}, URL: ${url}`);
+            const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
+                console.log(`[Dashboard] Received ${data.length} review records`);
+                console.log('[Dashboard] First 3 records:', data.slice(0, 3).map((r: any) => ({
+                    fileName: r.fileName,
+                    user: r.user?.name,
+                    status: r.status
+                })));
                 setReviewRecords(data);
+            } else {
+                console.error('[Dashboard] Failed to fetch reviews. Status:', res.status);
             }
         } catch (error) {
             console.error('Failed to fetch review records:', error);
@@ -216,10 +229,12 @@ function DashboardContent() {
         if (activeTab === 'regulations' || activeTab === 'cases') {
             fetchKnowledge(searchQuery);
         }
-        if (activeTab === 'workspace') {
+        if (activeTab === 'workspace' && user) {
             fetchReviewRecords();
         }
-    }, [activeTab]);
+    }, [activeTab, user]);
+
+
 
     const fetchKnowledge = async (query = '') => {
         setIsLoadingKnowledge(true);
@@ -323,6 +338,24 @@ function DashboardContent() {
         }
     };
 
+    const formatAction = (action: string) => {
+        const map: Record<string, string> = {
+            'login': '用户登录',
+            'login_failed': '登录失败',
+            'logout': '用户登出',
+            'change_password': '修改密码',
+            'create_cases': '新増案例',
+            'upload_file': '上传文件',
+            'analyze_file': '智能审查',
+            'view_review': '查看结果',
+            'delete_review': '删除记录',
+            'delete_user': '删除用户',
+            'create_user': '创建用户',
+            'access_denied': '访问拒绝'
+        };
+        return map[action] || action;
+    };
+
     const handleItemClick = async (item: any) => {
         // Identify if the item is a Case based on specific fields or active tab
         const isCase = activeTab === 'cases' || item.violationType || item.result;
@@ -386,6 +419,8 @@ function DashboardContent() {
                     >
                         ⚖️ 典型案例
                     </button>
+
+
                 </nav>
 
                 <div
@@ -482,6 +517,7 @@ function DashboardContent() {
                                     <tr>
                                         <th>状态</th>
                                         <th>文件名称</th>
+                                        {user?.role === 'admin' && <th>提交账号</th>}
                                         <th>风险点</th>
                                         <th>审查时间</th>
                                         <th>操作</th>
@@ -490,7 +526,7 @@ function DashboardContent() {
                                 <tbody>
                                     {reviewRecords.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} style={{ textAlign: 'center', padding: '60px 20px', color: '#9ca3af' }}>
+                                            <td colSpan={user?.role === 'admin' ? 6 : 5} style={{ textAlign: 'center', padding: '60px 20px', color: '#9ca3af' }}>
                                                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
                                                 <div style={{ fontSize: '14px' }}>暂无审查记录</div>
                                                 <div style={{ fontSize: '12px', marginTop: '8px', color: '#d1d5db' }}>上传文件开始审查</div>
@@ -505,6 +541,14 @@ function DashboardContent() {
                                                     {record.status === 'failed' && <span style={{ color: '#ef4444', background: '#fee2e2', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>失败</span>}
                                                 </td>
                                                 <td className={styles.fileName}>{record.fileName}</td>
+                                                {user?.role === 'admin' && (
+                                                    <td style={{ fontSize: '13px' }}>
+                                                        <div style={{ fontWeight: 500 }}>{record.user?.name || '未知'}</div>
+                                                        {record.user?.department && (
+                                                            <div style={{ fontSize: '12px', color: '#6b7280' }}>{record.user.department}</div>
+                                                        )}
+                                                    </td>
+                                                )}
                                                 <td>
                                                     {record.status === 'ignored' ? '-' : (
                                                         record.riskCount > 0 ?

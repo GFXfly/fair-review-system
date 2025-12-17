@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -840,8 +840,24 @@ export default function ReviewPage() {
         }
     };
 
+    const searchParams = useSearchParams();
+    const backUrl = searchParams.get('backUrl');
+
+    const handleBack = (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (backUrl) {
+            router.push(decodeURIComponent(backUrl));
+        } else {
+            router.push('/dashboard');
+        }
+    };
+
     const handleComplete = () => {
-        router.push('/dashboard');
+        if (backUrl) {
+            router.push(decodeURIComponent(backUrl));
+        } else {
+            router.push('/dashboard');
+        }
     };
 
     const activeRisk = risks.find(r => r.id === activeRiskId);
@@ -852,9 +868,9 @@ export default function ReviewPage() {
             <header className={`${styles.header} ${isHeaderCompact ? styles.headerCompact : ''}`}>
 
                 <div className={styles.fileInfo}>
-                    <Link href="/dashboard" className={styles.backLink}>
-                        ← 返回工作台
-                    </Link>
+                    <a href="#" onClick={handleBack} className={styles.backLink}>
+                        ← 返回{backUrl ? '上一页' : '工作台'}
+                    </a>
                     <span className={styles.fileName}>{fileName}</span>
                     {isIgnored ? (
                         <span className={styles.fileTag} style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>

@@ -526,7 +526,7 @@
     font-size: 18pt;
     /* 小二号 */
     font-weight: normal;
-    /* 小标宋本身够粗，不需要bold */
+    /* 不加粗 */
     text-align: center;
     margin-top: 1em;
     margin-bottom: 1em;
@@ -540,7 +540,7 @@
     font-size: 16pt;
     /* 三号 */
     font-weight: normal;
-    /* 黑体本身较粗 */
+    /* 不加粗 */
     text-indent: 2em;
     text-align: left;
     margin-top: 1.2em;
@@ -554,7 +554,7 @@
     font-size: 16pt;
     /* 三号 */
     font-weight: normal;
-    /* 楷体 */
+    /* 不加粗 */
     text-indent: 2em;
     text-align: left;
     margin-top: 1em;
@@ -569,8 +569,8 @@
     font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
     font-size: 16pt;
     /* 三号 */
-    font-weight: 700;
-    /* 加粗 */
+    font-weight: normal;
+    /* 不加粗 */
     text-indent: 2em;
     text-align: left;
     margin-top: 0.8em;

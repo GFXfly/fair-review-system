@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
 import { createErrorResponse } from '@/lib/error-handler';
+import { getCurrentUser } from '@/lib/auth';
 
 /**
  * 审计日志查询 API
@@ -10,20 +10,15 @@ import { createErrorResponse } from '@/lib/error-handler';
 export async function GET(req: NextRequest) {
     try {
         // 1. 验证管理员权限
-        const cookieStore = await cookies();
-        const userIdStr = cookieStore.get('userId')?.value;
-        const userId = userIdStr ? parseInt(userIdStr) : null;
+        // 1. 验证管理员权限
+        const user = await getCurrentUser();
 
-        if (!userId) {
+        if (!user) {
             return NextResponse.json(
                 { error: '未登录' },
                 { status: 401 }
             );
         }
-
-        const user = await prisma.user.findUnique({
-            where: { id: userId }
-        });
 
         if (!user || user.role !== 'admin') {
             return NextResponse.json(

@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -9,13 +8,13 @@ async function main() {
     const usersToEnsure = [
         {
             username: 'admin',
-            password: 'admin123',
+            passwordHash: '$2b$10$Xxn6i96VGimJ3.ezzPyKLOZelIFcPGuQVGuXtLl37xhTipqelBoUW', // admin123
             name: 'System Administrator',
             department: 'Information Center'
         },
         {
             username: 'Felix',
-            password: 'GFX150602',
+            passwordHash: '$2b$10$LIjg8BN.qsHfPOIzjQpaNebxR02zt31yrfVUN7U6WNOWjAmAJQXBC', // GFX150602
             name: 'Felix Admin',
             department: 'Super Admin Dept'
         }
@@ -27,15 +26,13 @@ async function main() {
             where: { username: u.username }
         });
 
-        const hashedPassword = await bcrypt.hash(u.password, 10);
-
         if (existingUser) {
             console.log(`User ${u.username} exists. Updating role and password...`);
             await prisma.user.update({
                 where: { id: existingUser.id },
                 data: {
                     role: 'admin',
-                    password: hashedPassword // Reset password to known value
+                    password: u.passwordHash
                 }
             });
             console.log(`User ${u.username} updated.`);
@@ -44,7 +41,7 @@ async function main() {
             await prisma.user.create({
                 data: {
                     username: u.username,
-                    password: hashedPassword,
+                    password: u.passwordHash,
                     name: u.name,
                     role: 'admin',
                     department: u.department

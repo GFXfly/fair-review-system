@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
     try {
@@ -16,12 +16,12 @@ export async function POST(req: NextRequest) {
 
         const userId = currentUser.id;
 
-        if (!newPassword || newPassword.length < 6) {
+        if (!validatePassword(newPassword)) {
             await logFailure('change_password', '新密码不符合要求', userId, undefined, undefined, req);
             return NextResponse.json({
                 error: '密码不符合要求',
-                message: '新密码长度至少需要6位',
-                suggestion: '请输入至少6个字符的密码'
+                message: PASSWORD_REQUIREMENTS_MSG,
+                suggestion: '请使用更复杂的密码（需包含字母、数字、符号中的两种）'
             }, { status: 400 });
         }
 

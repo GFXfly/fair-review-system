@@ -1,6 +1,7 @@
 import { callLLM } from '@/lib/llm';
 import { searchSimilarCases, searchSimilarRegulations } from '@/lib/rag';
 import { TextChunker } from '@/lib/text-utils';
+import { APP_CONFIG } from '@/lib/config';
 
 export interface AuditIssue {
     id: string;
@@ -15,31 +16,53 @@ export interface AuditIssue {
 export async function runAuditor(category: string, text: string, guidance: string = ""): Promise<AuditIssue[]> {
     console.log('Running Auditor on category:', category);
 
-    // 1. Sliding Window RAG Retrieval: Scan full text for relevant knowledge
-    const collectedCases = new Map<number, any>();
-    const collectedRegs = new Map<number, any>();
+    // ==========================================
+    // 🔥 优化：改用单次全文摘要检索
+    // ==========================================
 
-    // Use sliding window from TextChunker
-    let chunksProcessed = 0;
-    const maxChunks = 5; // Limit to 5 chunks for performance
+    // 使用配置文件中的参数
+    const { rag } = APP_CONFIG;
 
-    for (const chunk of TextChunker.slidingWindow(text, 1000, 200)) {
-        if (chunksProcessed >= maxChunks) break;
+    // 使用前5000字作为检索摘要
+    const summaryForRAG = TextChunker.truncate(text, rag.ragInputLength);
 
-        const [cases, regs] = await Promise.all([
-            searchSimilarCases(chunk, 2), // Top 2 per chunk
-            searchSimilarRegulations(chunk, 1) // Top 1 per chunk
-        ]);
+    console.log(`[RAG] 使用 ${summaryForRAG.length} 字进行知识库检索`);
 
-        cases.forEach((c: any) => collectedCases.set(c.id, c));
-        regs.forEach((r: any) => collectedRegs.set(r.id, r));
+    // 单次检索，应用相似度阈值
+    const [allCases, allRegs] = await Promise.all([
+        searchSimilarCases(summaryForRAG, rag.maxCasesPerQuery, rag.caseSimilarityThreshold),
+        searchSimilarRegulations(summaryForRAG, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold)
+    ]);
 
-        chunksProcessed++;
+    // 最终取配置数量的案例和法规
+    const uniqueCases = allCases.slice(0, rag.finalCasesCount);
+    const uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount);
+
+    // ==========================================
+    // 🔥 检索质量日志
+    // ==========================================
+
+    console.log(`[RAG] 检索结果统计：`);
+    console.log(`  - 案例数：${uniqueCases.length}/${rag.finalCasesCount}`);
+    if (uniqueCases.length > 0) {
+        const similarities = uniqueCases.map(c => c.similarity);
+        console.log(`  - 案例相似度范围：${(Math.min(...similarities) * 100).toFixed(1)}% ~ ${(Math.max(...similarities) * 100).toFixed(1)}%`);
+    }
+    console.log(`  - 法规数：${uniqueRegs.length}/${rag.finalRegulationsCount}`);
+    if (uniqueRegs.length > 0) {
+        const similarities = uniqueRegs.map(r => r.similarity);
+        console.log(`  - 法规相似度范围：${(Math.min(...similarities) * 100).toFixed(1)}% ~ ${(Math.max(...similarities) * 100).toFixed(1)}%`);
     }
 
-    // Convert Maps to Arrays and limit total context
-    const uniqueCases = Array.from(collectedCases.values()).slice(0, 5); // Max 5 unique cases
-    const uniqueRegs = Array.from(collectedRegs.values()).slice(0, 3);   // Max 3 unique regs
+    // 警告：高质量案例不足
+    const highQualityCases = uniqueCases.filter(c => c.similarity > rag.highQualityThreshold);
+    if (highQualityCases.length < rag.minHighQualityCases) {
+        console.warn(`[RAG] ⚠️  高相关性案例不足（>75%：${highQualityCases.length}个），可能影响判断准确性`);
+    }
+
+    // ==========================================
+    // 🔥 构建RAG上下文（标注相似度）
+    // ==========================================
 
     let ragContext = "";
 
@@ -48,11 +71,16 @@ export async function runAuditor(category: string, text: string, guidance: strin
         ragContext += "【重要】匹配案例时，请关注：\n";
         ragContext += "1. 违规的核心性质（地域限制？资质限制？给予特定企业优惠？）\n";
         ragContext += "2. 限制的主体对象（本地vs外地？特定企业vs一般企业？）\n";
-        ragContext += "3. 违规的程度（强制性要求？鼓励性条款？）\n\n";
+        ragContext += "3. 违规的程度（强制性要求？鼓励性条款？）\n";
+        ragContext += "4. 相似度指标：>75%为高度相似，60-75%为中度相似，<60%为参考\n\n";
 
         uniqueCases.forEach((c, idx) => {
-            // 提供更完整的案例信息
-            ragContext += `${idx + 1}. 【${c.violationType}】${c.title}\n`;
+            const similarityPercent = (c.similarity * 100).toFixed(1);
+            const similarityLabel = c.similarity > 0.75 ? '【高度相似】' :
+                                   c.similarity > 0.65 ? '【中度相似】' : '【参考】';
+
+            ragContext += `案例${idx + 1} ${similarityLabel}（相似度：${similarityPercent}%）\n`;
+            ragContext += `   标题：【${c.violationType}】${c.title}\n`;
             ragContext += `   案情：${c.content.substring(0, 300)}...\n`;
 
             // 重点标注违规要点
@@ -64,20 +92,18 @@ export async function runAuditor(category: string, text: string, guidance: strin
                 ragContext += `   处理结果：${c.result}\n`;
             }
 
-            // 添加违规类型标签
-            if (c.violationType) {
-                ragContext += `   违规类型标签：${c.violationType}\n`;
-            }
-
             ragContext += `\n`;
         });
+    } else {
+        // 如果没有检索到案例，提示AI
+        ragContext += "\n⚠️ 未检索到高相关性历史案例（相似度<65%），请仅依据法规进行独立判断。\n\n";
     }
 
     if (uniqueRegs.length > 0) {
         ragContext += "\n相关法律法规依据（请在 violated_law 字段中完整引用具体条款）：\n";
         uniqueRegs.forEach((r, idx) => {
-            // 提供更完整的法规内容，以便 AI 能够引用具体条款
-            ragContext += `${idx + 1}. 《${r.title}》\n`;
+            const similarityPercent = (r.similarity * 100).toFixed(1);
+            ragContext += `法规${idx + 1}（相似度：${similarityPercent}%）：《${r.title}》\n`;
             ragContext += `   内容：${r.content ? r.content.substring(0, 1000) : '暂无'}...\n\n`;
         });
     }
@@ -97,6 +123,105 @@ export async function runAuditor(category: string, text: string, guidance: strin
     ${guidance}
 
     ${ragContext}
+
+    // ==========================================
+    // 🔥 Few-shot示例教学
+    // ==========================================
+
+    **示例教学**（请严格参照以下示例的判定逻辑）：
+
+    【示例1：明确违规 - High风险】
+    原文引用："投标人须为本市注册企业，外地企业不得参与本项目投标。"
+
+    AI判定过程：
+    1. 识别违规类型：地域性限制（类型1）
+    2. 判定核心要素：
+       - 限制对象：外地企业（明确排斥）
+       - 限制手段："不得参与"（强制性禁止）
+       - 限制范围：所有外地企业（无例外）
+    3. 检索案例：假设有案例相似度82%
+    4. 风险等级：High（明确违反《条例》第十条，有相似案例）
+
+    输出JSON：
+    {
+        "id": "risk_1",
+        "risk_level": "High",
+        "description": "【地域性限制】文件明确要求投标人必须为本市注册企业，直接排斥外地企业参与投标，违反了《公平竞争审查条例》第十条关于'不得设置不合理的条件排斥或者限制外地经营者参加本地招标投标活动'的规定。这是典型的地域性市场分割，限制手段直接、强制，且无合理例外。",
+        "violated_law": "《公平竞争审查条例》第十条第一款：不得设置不合理的条件排斥或者限制外地经营者参加本地招标投标活动，或者排斥、限制、强制外地经营者在本地投资或者设立分支机构。",
+        "location": "投标人须为本市注册企业，外地企业不得参与本项目投标",
+        "suggestion": "建议删除'本市注册企业'的要求，改为'依法注册的企业'，不限制注册地域。",
+        "reference": "【某市政府采购限制外地企业案】违规类型：地域性限制（类型1）。相似度：82%。违规要点：招标文件要求投标人必须在本市注册，排斥外地企业。处理结果：责令改正，废止违规条款。"
+    }
+
+    【示例2：灰色地带 - Medium风险】
+    原文引用："优先支持年纳税额1000万元以上的企业申报项目。"
+
+    AI判定过程：
+    1. 识别违规类型：规模/业绩限制（类型3）+ 财政优惠（类型6）
+    2. 判定核心要素：
+       - 限制对象：小规模企业（间接排斥）
+       - 限制手段："优先支持"（非强制，但有差别待遇）
+       - 限制范围：年纳税额<1000万的企业（受影响面中等）
+    3. 检索案例：假设有案例相似度68%
+    4. 风险等级：Medium（属于选择性支持，但可能有产业政策依据）
+
+    输出JSON：
+    {
+        "id": "risk_2",
+        "risk_level": "Medium",
+        "description": "【规模/业绩限制 + 财政优惠】文件设置年纳税额1000万元的门槛，并给予'优先支持'，这属于选择性支持政策，可能对中小企业构成不公平竞争。虽然使用的是'优先'而非'限制'的表述，但实质上形成了基于企业规模的差别待遇。需注意是否有明确的产业政策或法律依据支撑该门槛设置。",
+        "violated_law": "《公平竞争审查条例》第十二条：除法律、行政法规另有规定外，不得给予特定经营者优惠政策。",
+        "location": "优先支持年纳税额1000万元以上的企业申报项目",
+        "suggestion": "建议取消纳税额门槛，或说明该政策的法律依据（如《产业结构调整指导目录》等）。如确需支持大企业，建议改为按行业分类、技术水平等市场化标准，而非简单的规模标准。",
+        "reference": "【某市大企业奖励政策案】违规类型：规模/业绩限制（类型3）。相似度：68%。违规要点：对年营收5000万以上的企业给予财政奖励。处理结果：要求调整标准，改为技术创新等市场化指标。"
+    }
+
+    【示例3：合理要求 - 不构成风险】
+    原文引用："投标人须具备建筑工程施工总承包二级及以上资质，且近三年无重大安全事故。"
+
+    AI判定过程：
+    1. 初步怀疑：资质/荣誉限制（类型4）？
+    2. 深入分析：
+       - 资质要求：行业准入必要条件（《建筑法》规定）
+       - 安全记录：合规管理需要，非歧视性条件
+       - 检索案例：无相似违规案例
+    3. 结论：不构成公平竞争风险
+
+    输出：不在JSON数组中包含该条
+
+    // ==========================================
+    // 🔥 风险等级量化标准
+    // ==========================================
+
+    **风险等级判定流程**（请严格执行）：
+
+    判定维度打分：
+
+    维度1：限制手段
+      - 强制性（"必须"、"不得"、"禁止"） → +3分
+      - 鼓励性（"优先"、"支持"） → +2分
+      - 建议性（"鼓励"、"倡导"） → +1分
+
+    维度2：限制范围
+      - 所有/大多数经营者 → +3分
+      - 特定行业/领域 → +2分
+      - 个别情形 → +1分
+
+    维度3：案例支撑
+      - 有完全匹配案例（相似度>75%） → +3分
+      - 有中度相似案例（60-75%） → +2分
+      - 无相似案例（<60%） → +1分
+
+    维度4：法律明确性
+      - 明确违反《条例》禁止性规定 → +3分
+      - 与《条例》精神不符 → +2分
+      - 灰色地带 → +1分
+
+    总分判定：
+    - 10-12分 → High
+    - 7-9分 → Medium
+    - 4-6分 → Low
+    - <4分 → 不构成风险
 
     请仔细阅读文件内容，找出所有潜在的风险点。
     
@@ -154,11 +279,52 @@ export async function runAuditor(category: string, text: string, guidance: strin
        - 如果检索到的案例与当前风险类型不一致，reference留空
        - 在reference中明确说明"违规类型：XXX"
 
-    **重要要求**：
-    1. violated_law 字段必须包含完整的法条内容
-    2. reference 字段**只在违规类型完全一致时**才引用，格式：
-       "【案例标题】违规类型：[1-7中的哪一类]。违规要点：XXX。处理结果：XXX。"
-    3. 如果没有同类型案例，reference留空或填"暂无完全匹配的相似案例"
+    // ==========================================
+    // 🔥 案例引用自检机制
+    // ==========================================
+
+    **案例引用检查清单**（每次引用前必须完成）：
+
+    □ 步骤1：确认当前风险属于哪一类（1-7）
+    □ 步骤2：检查案例是否属于同一类
+    □ 步骤3：检查相似度是否≥60%
+    □ 步骤4：如果上述任一不满足 → reference留空 ""
+
+    reference格式模板：
+    "【\${案例标题}】违规类型：\${类型名称}（类型\${1-7}）。相似度：\${XX}%。违规要点：\${核心违规内容}。处理结果：\${处理方式}。"
+
+    错误示例（禁止）：
+    ❌ "参考类似案例..." （未明确指出案例标题）
+    ❌ "根据某市案例..." （未标注相似度）
+    ❌ 引用不同类型的案例
+
+    // ==========================================
+    // 🔥 输出质量要求
+    // ==========================================
+
+    【输出质量要求】
+
+    1. description字段（150-300字）：
+       ✓ 第一句：明确说明违规类型（如"【地域性限制】"）
+       ✓ 第二句：描述具体违规内容
+       ✓ 第三句：说明为什么违规（法律依据）
+       ✓ 第四句：补充说明（如限制程度、影响范围等）
+
+    2. violated_law字段：
+       ✓ 必须包含完整法条：《XX法/条例》第X条第X款：【法条原文】
+       ✗ 禁止：只写"违反公平竞争审查条例"（不具体）
+
+    3. location字段（15-30字）：
+       ✓ 从原文中精确摘抄
+       ✓ 选择最能体现违规本质的句子
+
+    4. suggestion字段（100-200字）：
+       ✓ 提供具体的修改建议
+       ✓ 说明修改后的表述示例
+
+    5. reference字段：
+       ✓ 完全按照模板格式输出
+       ✓ 如果无匹配案例，留空：""或"暂无完全匹配的案例"
 
     请以 JSON 数组格式返回结果，每个风险点包含以下字段：
     [
@@ -169,7 +335,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
             "violated_law": "《法规名称》第X条第X款：【完整法条原文内容】",
             "location": "原文引用（20字左右），用于定位。",
             "suggestion": "具体的修改建议。",
-            "reference": "【仅在违规类型一致时填写】格式：【案例标题】违规类型：XXX。违规要点：XXX。"
+            "reference": "【仅在违规类型一致时填写】格式：【案例标题】违规类型：XXX。相似度：XX%。违规要点：XXX。"
         }
     ]
 

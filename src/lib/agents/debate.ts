@@ -1,10 +1,14 @@
 
-import { callLLM, DEEPSEEK_REASONER_MODEL, QWEN_MODEL, GLM_MODEL } from '@/lib/llm';
+import { callLLM, DEEPSEEK_MODEL, QWEN_MODEL, GLM_MODEL } from '@/lib/llm';
 import { TextChunker } from '@/lib/text-utils';
 import { AuditIssue } from './auditor';
+import { APP_CONFIG } from '@/lib/config';
 
-export const DEBATE_MODEL = QWEN_MODEL; // Defender uses Qwen (SiliconFlow)
-export const JUDGE_MODEL = GLM_MODEL;   // Judge uses GLM (SiliconFlow)
+// ==========================================
+// 🔥 优化2：模型配置（能力对等的多样性）
+// ==========================================
+export const DEBATE_MODEL = QWEN_MODEL;      // Defender: Qwen 72B（创造性辩护）
+export const JUDGE_MODEL = DEEPSEEK_MODEL;   // Judge: DeepSeek V3（强力裁决）
 
 /**
  * Agent B: The Defender
@@ -60,43 +64,96 @@ export async function runJudge(risk: AuditIssue, defense: string): Promise<Audit
     }
 
     const prompt = `
-你是一名公正的公平竞争审查主审官。请根据审查员的指控和起草人的辩护，对该风险点进行最终裁决。
+你是一名公正严谨的公平竞争审查主审官。请根据审查员的指控和起草人的辩护，对该风险点进行最终裁决。
 
 【审查员指控】
 - 描述：${risk.description}
 - 原始判定等级：${risk.risk_level}
+- 违反条款：${risk.violated_law}
 
 【起草人辩护】
 ${defense}
 
-【任务】
-1. 分析辩护理由是否成立。
-2. 判定该风险点是否应该被保留、降级或驳回。
+// ==========================================
+// 🔥 裁决标准（从严把握）
+// ==========================================
+
+【裁决标准】（⚠️ 请严格遵守）
+
+1. **DISMISS（驳回风险）** - 仅在以下情况才可选择：
+   必要条件（全部满足）：
+   ✓ 辩护明确引用了《公平竞争审查条例》第五条的例外情形（如维护国家安全、扶贫开发、救灾抢险等）
+   ✓ 文件内容确实符合该例外情形，且有充分证据支持
+   ✓ 例外适用范围明确、限期清晰，不存在滥用可能
+
+   排除情况（有以下任一情况不得DISMISS）：
+   ✗ 辩护理由含糊不清，未明确指出具体法律依据
+   ✗ 辩护仅提出"可能性"、"或许"等模糊表述
+   ✗ 辩护引用了非公平竞争审查领域的法规（如地方自主权、产业政策等）
+   ✗ 辩护理由是"普遍做法"、"参考其他地区"（这不构成合法性）
+
+2. **DOWNGRADE（降级）** - 以下情况可降级：
+   ✓ 辩护指出了合理的减轻情节（如限制范围较小、影响有限）
+   ✓ 文件措辞不够明确，存在解释空间
+   ✓ 可通过轻微修改消除风险
+
+3. **MAINTAIN（维持）** - 默认选择，以下情况必须维持：
+   ✓ 辩护理由不足以推翻原判
+   ✓ 辩护未提供有效法律依据
+   ✓ 风险明确且严重
+
+【裁决原则】
+- **宁可维持，不轻易驳回**：如有疑问，默认选择 MAINTAIN
+- **从严把握DISMISS**：只有辩护理由完全成立且有明确法律依据时才可DISMISS
+- **置信度要求**：DISMISS决定要求置信度≥85%，否则改为DOWNGRADE
+- **理由清晰**：ruling_reason 必须说明具体依据，不能含糊其辞
 
 【输出格式 (JSON)】
 {
     "final_decision": "MAINTAIN" | "DOWNGRADE" | "DISMISS",
-    "confidence": 0-100, // 置信度
-    "ruling_reason": "简要说明裁决理由",
+    "confidence": 0-100, // 你对该决定的置信度
+    "ruling_reason": "详细说明裁决理由，包括：\n1. 辩护理由是否成立\n2. 法律依据是否充分\n3. 做出该决定的具体依据",
     "revised_risk": {  // 仅在 MAINTAIN 或 DOWNGRADE 时需要
         "risk_level": "High" | "Medium" | "Low",
-        "description": "修正后的风险描述（如果需要补充裁决观点）",
-        "suggestion": "修正后的整改建议"
+        "description": "如需修正风险描述，在此填写",
+        "suggestion": "如需修正整改建议，在此填写"
     }
 }
+
+⚠️ 特别提醒：本系统用于政府文件合规审查，宁可谨慎（维持风险），不可疏漏（错误驳回）。
 `;
 
     try {
         const responseCtx = await callLLM(
-            "你是一名公正的法官。请输出 JSON 格式的裁决结果。",
+            "你是一名公正严谨的法官。请严格按照标准进行裁决，输出 JSON 格式结果。",
             prompt,
             true, // JSON mode
-            JUDGE_MODEL // Use GLM for judging
+            JUDGE_MODEL // Use DeepSeek V3 for judging
         );
 
         if (!responseCtx) return risk; // Fallback
 
         const ruling = JSON.parse(responseCtx);
+
+        // ==========================================
+        // 🔥 置信度检查机制
+        // ==========================================
+
+        if (ruling.final_decision === 'DISMISS') {
+            const confidenceThreshold = APP_CONFIG.debate.dismissConfidenceThreshold;
+
+            if (ruling.confidence < confidenceThreshold) {
+                console.warn(`[Judge] DISMISS置信度不足（${ruling.confidence}%），自动转为DOWNGRADE`);
+                ruling.final_decision = 'DOWNGRADE';
+                ruling.revised_risk = {
+                    ...risk,
+                    risk_level: 'Low',
+                    description: risk.description + '\n\n【裁决意见】：' + ruling.ruling_reason
+                };
+            } else {
+                console.log(`[Judge] DISMISS（置信度：${ruling.confidence}%）：${ruling.ruling_reason.substring(0, 50)}...`);
+            }
+        }
 
         if (ruling.final_decision === 'DISMISS') {
             return null; // Remove this risk
@@ -112,6 +169,6 @@ ${defense}
 
     } catch (e) {
         console.error("Judge failed:", e);
-        return risk; // Fallback to original risk
+        return risk; // Fallback: 保留原风险
     }
 }

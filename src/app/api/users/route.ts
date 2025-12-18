@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { requireAdmin, requireAuth, handleAuthError } from '@/lib/auth';
+import { requireAdmin, requireAuth, handleAuthError, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 
 /**
@@ -46,8 +46,8 @@ export async function POST(request: NextRequest) {
         if (!username || typeof username !== 'string' || username.length < 3) {
             return NextResponse.json({ error: '用户名无效：至少需要3个字符' }, { status: 400 });
         }
-        if (!password || typeof password !== 'string' || password.length < 6) {
-            return NextResponse.json({ error: '密码无效：至少需要6个字符' }, { status: 400 });
+        if (!password || typeof password !== 'string' || !validatePassword(password)) {
+            return NextResponse.json({ error: `密码无效：${PASSWORD_REQUIREMENTS_MSG}` }, { status: 400 });
         }
         if (!name || typeof name !== 'string') {
             return NextResponse.json({ error: '姓名无效' }, { status: 400 });

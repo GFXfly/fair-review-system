@@ -20,7 +20,22 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     return await getEmbedding(text);
 }
 
-export async function searchSimilarCases(query: string, limit: number = 3) {
+// ✅ 定义返回类型（包含相似度）
+export interface CaseWithSimilarity {
+    id: number;
+    title: string;
+    content: string;
+    violationType: string;
+    result: string | null;
+    violationDetail?: string | null;
+    similarity: number;
+}
+
+export async function searchSimilarCases(
+    query: string,
+    limit: number = 3,
+    threshold: number = 0.0  // ✅ 新增阈值参数
+): Promise<CaseWithSimilarity[]> {
     const queryEmbedding = await generateEmbedding(query);
 
     // Fallback to keyword search if embedding fails
@@ -51,9 +66,10 @@ export async function searchSimilarCases(query: string, limit: number = 3) {
         select: {
             id: true,
             title: true,
-            content: true, // Needed for context sometimes, or fetch later
+            content: true,
             violationType: true,
             result: true,
+            violationDetail: true,  // ✅ 包含违规要点
             embedding: true
         }
     });
@@ -74,14 +90,32 @@ export async function searchSimilarCases(query: string, limit: number = 3) {
     // Sort descending
     scored.sort((a, b) => b.similarity - a.similarity);
 
-    return scored.slice(0, limit).map(({ embedding, ...rest }) => rest);
+    // ✅ 应用阈值过滤和数量限制
+    const filtered = scored
+        .filter(c => c.similarity >= threshold)
+        .slice(0, limit);
+
+    // ✅ 保留similarity，但移除embedding
+    return filtered.map(({ embedding, ...rest }) => rest);
 }
 
-export async function searchSimilarRegulations(query: string, limit: number = 2) {
+// ✅ 定义返回类型（包含相似度）
+export interface RegulationWithSimilarity {
+    id: number;
+    title: string;
+    content: string;
+    similarity: number;
+}
+
+export async function searchSimilarRegulations(
+    query: string,
+    limit: number = 2,
+    threshold: number = 0.0  // ✅ 新增阈值参数
+): Promise<RegulationWithSimilarity[]> {
     const queryEmbedding = await generateEmbedding(query);
 
     if (queryEmbedding.length === 0) {
-        return await prisma.regulation.findMany({
+        const results = await prisma.regulation.findMany({
             where: {
                 OR: [
                     { title: { contains: query } },
@@ -90,6 +124,7 @@ export async function searchSimilarRegulations(query: string, limit: number = 2)
             },
             take: limit
         });
+        return results.map(r => ({ ...r, similarity: 0 }));
     }
 
     const allRegs = await prisma.regulation.findMany({
@@ -121,5 +156,11 @@ export async function searchSimilarRegulations(query: string, limit: number = 2)
 
     scored.sort((a, b) => b.similarity - a.similarity);
 
-    return scored.slice(0, limit).map(({ embedding, ...rest }) => rest);
+    // ✅ 应用阈值过滤和数量限制
+    const filtered = scored
+        .filter(r => r.similarity >= threshold)
+        .slice(0, limit);
+
+    // ✅ 保留similarity，但移除embedding
+    return filtered.map(({ embedding, ...rest }) => rest);
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { requireAdmin, handleAuthError } from '@/lib/auth';
+import { requireAdmin, handleAuthError, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { applyRateLimit, passwordResetRateLimiter, getClientId } from '@/lib/rate-limit';
 
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: '用户ID是必填项' }, { status: 400 });
         }
 
-        if (!newPassword || newPassword.length < 6) {
-            return NextResponse.json({ error: '新密码至少需要6个字符' }, { status: 400 });
+        if (!newPassword || !validatePassword(newPassword)) {
+            return NextResponse.json({ error: `新密码无效：${PASSWORD_REQUIREMENTS_MSG}` }, { status: 400 });
         }
 
         // Check if target user exists

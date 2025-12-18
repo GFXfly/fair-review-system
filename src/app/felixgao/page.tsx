@@ -157,19 +157,20 @@ function AdminContent() {
     };
 
     const handleResetPassword = async (userId: number, username: string) => {
-        if (!confirm(`确定要将用户 "${username}" 的密码重置为 "123456" 吗？`)) {
-            return;
-        }
+        const defaultPwd = 'Admin@123456';
+        const newPassword = prompt(`请输入用户 "${username}" 的新密码\n(格式要求：8位以上，包含字母/数字/符号中的两种)`, defaultPwd);
+
+        if (newPassword === null) return; // 用户取消
 
         try {
             const res = await fetch('/api/users/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, newPassword: '123456' })
+                body: JSON.stringify({ userId, newPassword })
             });
 
             if (res.ok) {
-                alert(`用户 ${username} 密码已重置为 123456`);
+                alert(`用户 ${username} 密码已重置`);
             } else {
                 const data = await res.json();
                 alert('重置失败: ' + (data.error || '未知错误'));
@@ -598,8 +599,8 @@ function AdminContent() {
                                     required
                                     value={newUser.password}
                                     onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                                    placeholder="设置初始密码"
-                                    minLength={6}
+                                    placeholder="设置初始密码（至少8位，含字母/数字/符号）"
+                                    minLength={8}
                                 />
                             </div>
                             <div className={styles.formGroup}>

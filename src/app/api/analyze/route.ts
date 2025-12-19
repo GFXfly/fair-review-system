@@ -166,7 +166,9 @@ export async function POST(req: NextRequest) {
                         title: r.description.substring(0, 50),
                         description: r.description,
                         location: r.location,
-                        suggestion: r.suggestion
+                        suggestion: r.suggestion,
+                        law: r.violated_law,
+                        relatedCase: r.reference
                     }))
                 }
             }

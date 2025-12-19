@@ -10,6 +10,7 @@ services:
     ports:
       - "3005:3000"
     environment:
+      - NODE_ENV=production
       - DATABASE_URL=file:/app/data/dev.db
     volumes:
       # Mount a local directory to /app/data inside the container to persist the SQLite DB

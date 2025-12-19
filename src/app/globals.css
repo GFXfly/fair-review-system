@@ -40,3 +40,37 @@ a {
 * {
   box-sizing: border-box;
 }
+
+/* Document Table Styles */
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.95em;
+  border: 1px solid var(--border);
+}
+
+.doc-table th,
+.doc-table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.doc-table th {
+  background-color: var(--secondary);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.doc-table tr:hover {
+  background-color: var(--accent);
+}
+
+/* Ensure merged cells look correct */
+.doc-table td[colspan],
+.doc-table th[colspan] {
+  text-align: center;
+}

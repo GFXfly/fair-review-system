@@ -426,8 +426,8 @@ export default function ReviewPage() {
                                 title: item.title || '风险点',
                                 snippet: item.quote || item.location || '（详细定位需对照原文）',
                                 reason: item.description,
-                                law: '《公平竞争审查条例》相关条款',
-                                case: '暂无数据',
+                                law: item.law || '《公平竞争审查条例》相关条款',
+                                case: item.relatedCase || '暂无数据',
                                 suggestion: item.suggestion
                             };
                         });
@@ -1178,17 +1178,43 @@ export default function ReviewPage() {
                                         </div>
 
                                         <div className={styles.detailSection}>
-                                            <div className={styles.detailTitle}>📖 相似案例</div>
-                                            <div className={styles.caseBox}>
-                                                {activeRisk.case.split('\n').map((line: string, idx: number) => (
-                                                    <div key={idx} style={{
-                                                        marginBottom: idx < activeRisk.case.split('\n').length - 1 ? '8px' : '0',
-                                                        lineHeight: '1.6'
-                                                    }}>
-                                                        {line}
-                                                    </div>
-                                                ))}
+                                            <div className={styles.detailTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span>📖 相似案例引用</span>
+                                                <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px' }}>权威佐证</span>
                                             </div>
+
+                                            {(!activeRisk.case || activeRisk.case === '暂无数据' || activeRisk.case === '暂无相似案例匹配') ? (
+                                                <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '10px 0', fontSize: '14px' }}>暂无相似案例数据。</div>
+                                            ) : (
+                                                <div className={styles.caseBox} style={{ background: 'linear-gradient(to bottom right, #ffffff, #f8fafc)', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', marginTop: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                                    {/* Header */}
+                                                    <div style={{ background: '#f1f5f9', padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontSize: '13px', color: '#475569', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                                                        <span style={{ marginRight: '6px' }}>🏛️</span> 案例来源 / 权威答疑
+                                                    </div>
+
+                                                    {/* Content */}
+                                                    <div style={{ padding: '16px 16px 16px 20px', position: 'relative' }}>
+                                                        {/* Decorative Quote Mark */}
+                                                        <span style={{ position: 'absolute', top: '8px', left: '6px', fontSize: '40px', color: '#e2e8f0', fontFamily: 'serif', lineHeight: 1, userSelect: 'none' }}>“</span>
+
+                                                        <div style={{ position: 'relative', zIndex: 1, fontSize: '14px', lineHeight: '1.7', color: '#334155', fontFamily: 'system-ui, -apple-system, serif' }}>
+                                                            {activeRisk.case.split('\n').map((line: string, idx: number) => (
+                                                                <p key={idx} style={{ margin: '0 0 8px 0', textIndent: '0em' }}>
+                                                                    {line}
+                                                                </p>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Footer / Analysis */}
+                                                    <div style={{ padding: '8px 12px', background: '#fffbeb', borderTop: '1px solid #fef3c7', fontSize: '12px', color: '#b45309', display: 'flex', gap: '8px', alignItems: 'start' }}>
+                                                        <span style={{ fontSize: '14px' }}>💡</span>
+                                                        <span style={{ lineHeight: '1.4' }}>
+                                                            <strong>对比说明：</strong> 该案例中的违规情形（如“{activeRisk.title.substring(0, 6)}...”）与当前文档存在高度相似性，已被监管部门明确认定为违规，请务必引起重视。
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className={styles.detailSection}>

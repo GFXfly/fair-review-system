@@ -101,6 +101,8 @@ model ReviewRisk {
   quote       String?      // 原文引用
   location    String?      // 在文档中的位置信息
   suggestion  String?      // 修改建议
+  law         String?      // 违反条款
+  relatedCase String?      // 相似案例
   
   createdAt   DateTime     @default(now())
 }

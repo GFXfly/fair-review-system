@@ -28,20 +28,18 @@ async function main() {
             where: { username: u.username }
         });
 
-        const hashedPassword = await bcrypt.hash(u.password, 10);
-
         if (existingUser) {
-            console.log(`User ${u.username} exists. Updating role and password...`);
+            console.log(`User ${u.username} exists. Ensuring admin role...`);
             await prisma.user.update({
                 where: { id: existingUser.id },
                 data: {
-                    role: 'admin',
-                    password: hashedPassword // Reset password to known value
+                    role: 'admin'
                 }
             });
-            console.log(`User ${u.username} updated.`);
+            console.log(`User ${u.username} updated (password preserved).`);
         } else {
             console.log(`User ${u.username} not found. Creating...`);
+            const hashedPassword = await bcrypt.hash(u.password, 10);
             await prisma.user.create({
                 data: {
                     username: u.username,

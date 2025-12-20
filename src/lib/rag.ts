@@ -12,7 +12,9 @@ function cosineSimilarity(vecA: number[], vecB: number[]) {
         normA += vecA[i] * vecA[i];
         normB += vecB[i] * vecB[i];
     }
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+    if (magnitude === 0) return 0;
+    return dotProduct / magnitude;
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { requireAuth, handleAuthError } from '@/lib/auth';
+import { requireAuth, handleAuthError, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { applyRateLimit, passwordResetRateLimiter, getClientId } from '@/lib/rate-limit';
 
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (newPassword.length < 6) {
+        if (!validatePassword(newPassword)) {
             return NextResponse.json(
-                { error: '新密码至少需要6个字符' },
+                { error: `新密码不符合要求：${PASSWORD_REQUIREMENTS_MSG}` },
                 { status: 400 }
             );
         }

@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, handleAuthError } from '@/lib/auth';
 
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q');
-    const category = searchParams.get('category');
-    const id = searchParams.get('id');
-
+export async function GET(request: NextRequest) {
     try {
+        await requireAuth(request);
+        const { searchParams } = new URL(request.url);
+        const query = searchParams.get('q');
+        const category = searchParams.get('category');
+        const id = searchParams.get('id');
+
         if (id) {
             const regulation = await prisma.regulation.findUnique({
                 where: { id: parseInt(id) }
@@ -29,8 +31,6 @@ export async function GET(request: Request) {
             where.category = {
                 not: 'QA_Fragment'
             };
-        } else {
-            // If searching, we want everything, including fragments
         }
 
         // If specific category selected (overrides the above if needed, but usually 'category' filter is from UI tab)
@@ -47,7 +47,6 @@ export async function GET(request: Request) {
                 publishDate: true,
                 department: true,
                 category: true,
-                // content is excluded for list view to optimize performance
             },
             orderBy: {
                 publishDate: 'desc',
@@ -56,7 +55,6 @@ export async function GET(request: Request) {
 
         return NextResponse.json(regulations);
     } catch (error) {
-        console.error('Error fetching regulations:', error);
-        return NextResponse.json({ error: 'Failed to fetch regulations' }, { status: 500 });
+        return handleAuthError(error);
     }
 }

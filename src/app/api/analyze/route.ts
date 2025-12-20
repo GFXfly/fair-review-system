@@ -9,7 +9,8 @@ import { prisma } from '@/lib/prisma';
 import { TextChunker } from '@/lib/text-utils';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, requireAuth } from '@/lib/auth';
+import { applyRateLimit, llmAnalysisRateLimiter, getClientId } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
     let userId: number | null = null;
@@ -19,9 +20,17 @@ export async function POST(req: NextRequest) {
         const formData = await req.formData();
         const file = formData.get('file') as File;
 
-        // Get user from cookie
-        const user = await getCurrentUser();
-        userId = user ? user.id : null;
+        // Require authentication
+        const user = await requireAuth(req);
+        userId = user.id;
+
+        // Apply rate limiting (LLM Level)
+        const clientId = getClientId(req);
+        const rateLimitResult = await applyRateLimit(llmAnalysisRateLimiter, user.username || clientId);
+        if (!rateLimitResult.success) {
+            await logFailure('analyze_file', '分析尝试次数过多', userId, undefined, { clientId }, req);
+            return rateLimitResult.response!;
+        }
 
         if (!file) {
             await logFailure('upload_file', '未提供文件', userId, undefined, undefined, req);

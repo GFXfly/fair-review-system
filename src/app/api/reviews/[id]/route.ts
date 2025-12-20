@@ -63,6 +63,11 @@ export async function GET(
             return NextResponse.json({ error: 'Review ID is required' }, { status: 400 });
         }
 
+        const currentUser = await getCurrentUser();
+        if (!currentUser) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const review = await prisma.reviewRecord.findUnique({
             where: {
                 id: id
@@ -74,6 +79,11 @@ export async function GET(
 
         if (!review) {
             return NextResponse.json({ error: 'Review record not found' }, { status: 404 });
+        }
+
+        // 归属校验：非管理员只能看自己的记录
+        if (currentUser.role !== 'admin' && review.userId !== currentUser.id) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         // Transform data to match the format used in review page
@@ -93,14 +103,15 @@ export async function GET(
                 reason: review.summary || '无摘要',
                 needs_review: review.status !== 'ignored'
             },
-            risks: (review as any).risks.map((r: any) => ({
+            risks: review.risks.map((r: any) => ({
                 id: r.id.toString(),
-                risk_level: r.level as 'High' | 'Medium' | 'Low',
+                level: r.level,
+                title: r.title,
                 description: r.description,
                 location: r.location,
                 suggestion: r.suggestion,
-                violated_law: null,
-                reference: null
+                law: r.law,
+                relatedCase: r.relatedCase
             }))
         };
 

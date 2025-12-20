@@ -1,4 +1,37 @@
 import mammoth from 'mammoth';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
+const window = new JSDOM('').window;
+const DOMPurify = createDOMPurify(window);
+
+/**
+ * Sanitize HTML to prevent XSS while preserving document structure
+ */
+function sanitizeHtml(html: string): string {
+    return DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: [
+            'p', 'br', 'b', 'i', 'em', 'strong', 'a',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
+            'div', 'span', 'ul', 'ol', 'li'
+        ],
+        ALLOWED_ATTR: ['class', 'style', 'id', 'colspan', 'rowspan', 'href', 'target', 'data-html-content'],
+    });
+}
+
+/**
+ * Simple HTML escape for plain text
+ */
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 
 export interface ParsedDocument {
     text: string;  // Plain text for AI analysis
@@ -114,7 +147,7 @@ export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
 
                 return {
                     text,
-                    html: displayHtml
+                    html: sanitizeHtml(displayHtml)
                 };
 
             } catch (mammothError: any) {
@@ -126,9 +159,10 @@ export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
         else if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
             const textDecoder = new TextDecoder('utf-8');
             const text = textDecoder.decode(buffer);
+            const escapedText = escapeHtml(text);
             return {
                 text,
-                html: `<div class="doc-content">${text.replace(/\n/g, '<br>')}</div>`
+                html: `<div class="doc-content">${escapedText.replace(/\n/g, '<br>')}</div>`
             };
         }
         // 3. Fallback for others

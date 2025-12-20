@@ -26,17 +26,7 @@ interface ReviewRecord {
     };
 }
 // ... (rest of the file remains same until table header)
-<thead>
-    <tr>
-        <th>文件名称</th>
-        <th>提交账号</th>
-        <th>审查状态</th>
-        <th>风险数</th>
-        <th>提交时间</th>
-        <th>摘要</th>
-        <th>操作</th>
-    </tr>
-</thead>
+// ... (rest of the file remains same until table header)
 
 export default function AdminPage() {
     return (
@@ -179,6 +169,25 @@ function AdminContent() {
             console.error('Reset password error:', err);
             alert('操作失败，请重试');
         }
+    };
+
+    const getCategoryLabel = (summary: string | null): string => {
+        if (!summary) return '-';
+        const match = summary.match(/文件类型：([^。、\s]+)/);
+        const category = match ? match[1] : '';
+
+        const categoryMap: Record<string, string> = {
+            'BIDDING': '招标文件',
+            'SUBSIDY': '补贴政策',
+            'MARKET_ACCESS': '市场准入文件',
+            'INDUSTRIAL': '产业扶持政策',
+            'SPECIAL_FUND': '专项资金文件',
+            'IGNORE': '非政策文件',
+            'POLICY': '政策文件',
+            'AGREEMENT': '行政协议'
+        };
+
+        return categoryMap[category] || category || '政策文件';
     };
 
     const handleDeleteUser = async (userId: number, username: string) => {
@@ -477,6 +486,7 @@ function AdminContent() {
                                     <thead>
                                         <tr>
                                             <th>文件名称</th>
+                                            <th>文件类型</th>
                                             <th>提交账号</th>
                                             <th>审查状态</th>
                                             <th>风险数</th>
@@ -488,15 +498,20 @@ function AdminContent() {
                                     <tbody>
                                         {realReviewRecords.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
+                                                <td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
                                                     暂无审计数据
                                                 </td>
                                             </tr>
                                         ) : (
                                             realReviewRecords.map((record) => (
                                                 <tr key={record.id}>
-                                                    <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={record.fileName}>
+                                                    <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={record.fileName}>
                                                         {record.fileName}
+                                                    </td>
+                                                    <td>
+                                                        <span className={styles.tag} style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', fontWeight: 500 }}>
+                                                            {getCategoryLabel(record.summary)}
+                                                        </span>
                                                     </td>
                                                     <td style={{ fontSize: '12px' }}>
                                                         {record.user ? (

@@ -12,6 +12,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:/app/data/dev.db
+      - SESSION_SECRET=${SESSION_SECRET:-fair_competition_secret_please_change_this}
     volumes:
       # Mount a local directory to /app/data inside the container to persist the SQLite DB
       - ./data:/app/data

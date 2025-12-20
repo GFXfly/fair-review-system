@@ -170,8 +170,8 @@ function DashboardContent() {
             return;
         }
 
-        if (passwordForm.newPassword.length < 6) {
-            alert('新密码长度至少需要6位');
+        if (passwordForm.newPassword.length < 8) {
+            alert('新密码长度至少需要8位');
             return;
         }
 
@@ -396,7 +396,7 @@ function DashboardContent() {
             <header className={styles.navbar}>
                 <div className={styles.logoArea}>
                     <div className={styles.logoIcon}>⚖️</div>
-                    <div className={styles.logoText}>公平竞争审查系统 <span className={styles.version}>v1.1</span></div>
+                    <div className={styles.logoText}>公平竞争审查系统</div>
                 </div>
 
                 <nav className={styles.navLinks}>

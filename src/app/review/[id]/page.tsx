@@ -465,10 +465,15 @@ export default function ReviewPage() {
             const risk = risks.find(r => r.id === activeRiskId);
 
             // Clear previous highlights
+            // Clear previous highlights safely
             document.querySelectorAll('mark.risk-highlight').forEach(mark => {
                 const parent = mark.parentNode;
                 if (parent) {
-                    parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+                    // Move all children out of the mark tag before removing it
+                    while (mark.firstChild) {
+                        parent.insertBefore(mark.firstChild, mark);
+                    }
+                    parent.removeChild(mark);
                     parent.normalize();
                 }
             });
@@ -481,40 +486,50 @@ export default function ReviewPage() {
                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                 }
-                // For HTML mode (new) - highlight matching text
                 else if (risk.snippet) {
-                    console.log('[Risk Click] Looking for HTML container...');
-                    const htmlContainer = document.querySelector('[data-html-content="true"]') as HTMLElement;
+                    const htmlContainers = document.querySelectorAll('[data-html-content="true"]');
 
-                    if (htmlContainer) {
-                        console.log('[Risk Click] Found HTML container');
-                        // Extract meaningful text from snippet (remove "...")
-                        let searchText = risk.snippet.replace(/\.\.\./g, '').replace(/^"|"$/g, '').trim();
+                    if (htmlContainers.length > 0) {
+                        console.log(`[Risk Click] Searching in ${htmlContainers.length} HTML containers`);
 
-                        // If snippet is too long, take first meaningful part
-                        if (searchText.length > 100) {
-                            searchText = searchText.substring(0, 100);
+                        // Extract meaningful text from snippet
+                        let searchText = risk.snippet.replace(/\.\.\./g, ' ').replace(/^"|"$/g, '').trim();
+
+                        // Increase truncation limit to 500 for better matching
+                        if (searchText.length > 500) {
+                            searchText = searchText.substring(0, 500);
                         }
 
                         console.log('[Risk Click] Searching for:', searchText);
 
                         if (searchText.length > 5) {
-                            // Find and highlight the text
-                            highlightTextInNode(htmlContainer, searchText);
-
-                            // Scroll to first highlight
-                            setTimeout(() => {
-                                const firstHighlight = document.querySelector('mark.risk-highlight');
-                                if (firstHighlight) {
-                                    console.log('[Risk Click] Scrolling to highlight');
-                                    firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                } else {
-                                    console.warn('[Risk Click] No highlight found after search');
+                            // Try highlighting in each container until one succeeds
+                            let foundMatch = false;
+                            for (let i = 0; i < htmlContainers.length; i++) {
+                                if (highlightTextInNode(htmlContainers[i] as HTMLElement, searchText)) {
+                                    foundMatch = true;
+                                    break;
                                 }
-                            }, 100);
+                            }
+
+                            if (foundMatch) {
+                                // Scroll to first highlight with retry
+                                const scrollToHighlight = (attempt = 0) => {
+                                    const firstHighlight = document.querySelector('mark.risk-highlight');
+                                    if (firstHighlight) {
+                                        console.log('[Risk Click] Scrolling to highlight, attempt:', attempt);
+                                        firstHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    } else if (attempt < 5) {
+                                        setTimeout(() => scrollToHighlight(attempt + 1), 100);
+                                    }
+                                };
+                                setTimeout(() => scrollToHighlight(), 150);
+                            } else {
+                                console.warn('[Risk Click] All containers searched, no match found');
+                            }
                         }
                     } else {
-                        console.warn('[Risk Click] HTML container not found');
+                        console.warn('[Risk Click] No HTML containers found');
                     }
                 }
             }
@@ -523,151 +538,123 @@ export default function ReviewPage() {
 
 
     // Enhanced multi-strategy text highlighting function
-    const highlightTextInNode = (container: HTMLElement, searchText: string) => {
-        if (!searchText || searchText.length < 5) return;
+    const highlightTextInNode = (container: HTMLElement, searchText: string): boolean => {
+        if (!searchText || searchText.length < 5) return false;
 
-        console.log('[Highlight] === Starting multi-strategy search ===');
-        console.log('[Highlight] Original search text:', searchText);
+        console.log('[Highlight] === Starting search in container ===');
 
-        // Helper: normalize text (remove spaces, punctuation, etc.)
+        // Helper: normalize text
         const normalize = (text: string) => {
             return text
-                .replace(/[\s\u3000]/g, '') // Remove all whitespace
-                .replace(/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>]/g, '') // Remove punctuation
+                .replace(/[\s\u3000]/g, '')
+                .replace(/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>«»]/g, '')
                 .toLowerCase();
         };
 
-        // Get all text content from container
         const fullText = container.textContent || '';
-        const fullHTML = container.innerHTML;
-
-        console.log('[Highlight] Document has', fullText.length, 'characters');
-
-        // Strategy 1: Exact match in HTML
-        if (fullHTML.includes(searchText)) {
-            console.log('[Highlight] ✓ Strategy 1: Exact match in HTML');
-            const escapedSearch = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const highlighted = fullHTML.replace(
-                new RegExp(escapedSearch, 'g'),
-                `<mark class="risk-highlight" style="background-color: rgba(252, 165, 165, 0.7); padding: 3px 5px; border-radius: 3px; font-weight: 500;">$&</mark>`
-            );
-            container.innerHTML = highlighted;
-            return;
-        }
-
-        // Strategy 2: Normalized match
-        const normalizedSearch = normalize(searchText);
         const normalizedFull = normalize(fullText);
+        const normalizedSearch = normalize(searchText);
 
-        if (normalizedFull.includes(normalizedSearch)) {
-            console.log('[Highlight] ✓ Strategy 2: Normalized match');
-            // Find the actual text to highlight
+        // Strategy 2: Exact normalized match
+        if (normalizedFull.indexOf(normalizedSearch) !== -1) {
+            console.log('[Highlight] ✓ Strategy 2: Exact normalized match');
             highlightByNormalizedMatch(container, searchText, normalizedSearch);
-            return;
+            return true;
         }
 
-        // Strategy 3: Substring search (first 50% of text)
-        const substringLength = Math.floor(searchText.length * 0.5);
-        const substring = searchText.substring(0, substringLength);
-        const normalizedSubstring = normalize(substring);
+        // Strategy 3: Sliding window segments
+        // Be more permissive with punctuation and length
+        const segments = searchText.split(/[,，.。、；;：:!！?？\n\r|｜]/).map(s => s.trim()).filter(s => s.length >= 6);
+        console.log(`[Highlight] Strategy 3: Trying ${segments.length} segments`);
 
-        if (normalizedSubstring.length > 10 && normalizedFull.includes(normalizedSubstring)) {
-            console.log('[Highlight] ✓ Strategy 3: Substring match (50%)');
-            highlightByNormalizedMatch(container, substring, normalizedSubstring);
-            return;
-        }
-
-        // Strategy 4: Split by punctuation and search segments
-        const segments = searchText.split(/[,，.。、;；]/);
         for (const segment of segments) {
-            const trimmed = segment.trim();
-            if (trimmed.length > 15) {
-                const normalizedSegment = normalize(trimmed);
-                if (normalizedFull.includes(normalizedSegment)) {
-                    console.log('[Highlight] ✓ Strategy 4: Segment match:', trimmed.substring(0, 20) + '...');
-                    highlightByNormalizedMatch(container, trimmed, normalizedSegment);
-                    return;
-                }
+            const normalizedSegment = normalize(segment);
+            if (normalizedSegment.length >= 6 && normalizedFull.indexOf(normalizedSegment) !== -1) {
+                console.log('[Highlight] ✓ Strategy 3: Found segment match:', segment.substring(0, 20));
+                highlightByNormalizedMatch(container, segment, normalizedSegment);
+                return true;
             }
         }
 
-        // Strategy 5: First 30 characters
-        const first30 = searchText.substring(0, 30);
-        const normalizedFirst30 = normalize(first30);
-
-        if (normalizedFirst30.length > 10 && normalizedFull.includes(normalizedFirst30)) {
-            console.log('[Highlight] ✓ Strategy 5: First 30 chars match');
-            highlightByNormalizedMatch(container, first30, normalizedFirst30);
-            return;
+        // Strategy 4: Prefix matching with backoff
+        for (let len = Math.min(searchText.length, 120); len >= 15; len -= 5) {
+            const prefix = searchText.substring(0, len);
+            const normalizedPrefix = normalize(prefix);
+            if (normalizedPrefix.length >= 10 && normalizedFull.indexOf(normalizedPrefix) !== -1) {
+                console.log('[Highlight] ✓ Strategy 4: Found prefix match of length:', len);
+                highlightByNormalizedMatch(container, prefix, normalizedPrefix);
+                return true;
+            }
         }
 
-        console.warn('[Highlight] ✗ All strategies failed. No match found.');
-        console.log('[Highlight] Normalized search:', normalizedSearch.substring(0, 50) + '...');
-        console.log('[Highlight] Normalized doc (first 200):', normalizedFull.substring(0, 200) + '...');
+        return false;
     };
 
-    // Helper function to highlight by normalized matching
+    // Helper function to highlight by normalized matching (Robust version)
     const highlightByNormalizedMatch = (container: HTMLElement, originalText: string, normalizedSearch: string) => {
-        const walker = document.createTreeWalker(
-            container,
-            NodeFilter.SHOW_TEXT,
-            null
-        );
-
         const textNodes: Text[] = [];
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
         while (walker.nextNode()) {
             textNodes.push(walker.currentNode as Text);
         }
 
-        // Build a full text map
-        let fullText = '';
-        const nodeMap: Array<{ node: Text; start: number; end: number }> = [];
+        // 1. Build a map of normalized character index -> (original node, offset)
+        let normalizedFullText = '';
+        const charMap: Array<{ node: Text; offset: number }> = [];
 
         textNodes.forEach(node => {
             const text = node.textContent || '';
-            const start = fullText.length;
-            fullText += text;
-            const end = fullText.length;
-            nodeMap.push({ node, start, end });
-        });
-
-        // Find match position in normalized text
-        const normalizedFull = fullText.replace(/[\s\u3000]/g, '').replace(/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>]/g, '').toLowerCase();
-        const matchIndex = normalizedFull.indexOf(normalizedSearch);
-
-        if (matchIndex === -1) {
-            console.warn('[Highlight] Normalized match failed in helper');
-            return;
-        }
-
-        console.log('[Highlight] Match found at normalized index:', matchIndex);
-
-        // Map back to original text position (rough estimate)
-        // This is tricky because we removed characters
-        // Let's use a simpler approach: find the first text node that contains significant overlap
-
-        textNodes.forEach(textNode => {
-            const text = textNode.textContent || '';
-            const normalized = text.replace(/[\s\u3000]/g, '').replace(/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>]/g, '').toLowerCase();
-
-            // Check if this node contains part of our search
-            if (normalized.length > 5 && normalizedSearch.includes(normalized.substring(0, Math.min(10, normalized.length)))) {
-                // Highlight this node
-                const mark = document.createElement('mark');
-                mark.className = 'risk-highlight';
-                mark.style.backgroundColor = 'rgba(252, 165, 165, 0.7)';
-                mark.style.padding = '3px 5px';
-                mark.style.borderRadius = '3px';
-                mark.style.fontWeight = '500';
-                mark.textContent = text;
-
-                const parent = textNode.parentNode;
-                if (parent) {
-                    parent.replaceChild(mark, textNode);
-                    console.log('[Highlight] Highlighted node:', text.substring(0, 30) + '...');
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                // Check if this character would be preserved by our normalization
+                const isPreserved = !/[\s\u3000]/.test(char) && !/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>]/.test(char);
+                if (isPreserved) {
+                    charMap.push({ node, offset: i });
+                    normalizedFullText += char.toLowerCase();
                 }
             }
         });
+
+        // 2. Find the match in the normalized text
+        const matchIndex = normalizedFullText.indexOf(normalizedSearch.toLowerCase());
+        if (matchIndex === -1) {
+            console.warn('[Highlight] Precise normalized match failed');
+            return;
+        }
+
+        // 3. Identify all nodes and their ranges involved in the match
+        const startEntry = charMap[matchIndex];
+        const endEntry = charMap[matchIndex + normalizedSearch.length - 1];
+
+        if (!startEntry || !endEntry) return;
+
+        // Find all nodes between start node and end node in textNodes array
+        const startIndex = textNodes.indexOf(startEntry.node);
+        const endIndex = textNodes.indexOf(endEntry.node);
+
+        if (startIndex === -1 || endIndex === -1) return;
+
+        // Highlight affected nodes
+        for (let i = startIndex; i <= endIndex; i++) {
+            const node = textNodes[i];
+            const parent = node.parentNode;
+            if (!parent) continue;
+
+            const mark = document.createElement('mark');
+            mark.className = 'risk-highlight';
+            mark.style.backgroundColor = 'rgba(252, 165, 165, 0.7)';
+            mark.style.padding = '3px 0'; // Vertical padding only to avoid layout shifts
+            mark.style.borderRadius = '2px';
+            mark.style.fontWeight = '500';
+
+            // Wrap the whole node content for simplicity in this loop
+            // In a truly precise version, we'd split the start and end nodes
+            // but wrapping involved nodes is usually sufficient for visual feedback.
+            parent.replaceChild(mark, node);
+            mark.appendChild(node);
+        }
+
+        console.log('[Highlight] ✓ Multi-node highlight applied successfully');
     };
 
     const handleRiskClick = (riskId: string) => {
@@ -846,7 +833,14 @@ export default function ReviewPage() {
     const handleBack = (e: React.MouseEvent) => {
         e.preventDefault();
         if (backUrl) {
-            router.push(decodeURIComponent(backUrl));
+            const decodedUrl = decodeURIComponent(backUrl);
+            // Only allow relative paths (starting with /) to prevent open redirect
+            if (decodedUrl.startsWith('/') && !decodedUrl.startsWith('//')) {
+                router.push(decodedUrl);
+            } else {
+                console.warn('Blocked potentially unsafe redirect:', decodedUrl);
+                router.push('/dashboard');
+            }
         } else {
             router.push('/dashboard');
         }
@@ -854,10 +848,13 @@ export default function ReviewPage() {
 
     const handleComplete = () => {
         if (backUrl) {
-            router.push(decodeURIComponent(backUrl));
-        } else {
-            router.push('/dashboard');
+            const decodedUrl = decodeURIComponent(backUrl);
+            if (decodedUrl.startsWith('/') && !decodedUrl.startsWith('//')) {
+                router.push(decodedUrl);
+                return;
+            }
         }
+        router.push('/dashboard');
     };
 
     const activeRisk = risks.find(r => r.id === activeRiskId);

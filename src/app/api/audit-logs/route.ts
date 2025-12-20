@@ -92,10 +92,21 @@ export async function GET(req: NextRequest) {
 
         // 5. 返回结果
         return NextResponse.json({
-            logs: logs.map(log => ({
-                ...log,
-                details: log.details ? JSON.parse(log.details) : null
-            })),
+            logs: logs.map(log => {
+                let parsedDetails = null;
+                if (log.details) {
+                    try {
+                        parsedDetails = JSON.parse(log.details);
+                    } catch (e) {
+                        console.error(`Failed to parse audit log details for log ${log.id}`, e);
+                        parsedDetails = { raw: log.details };
+                    }
+                }
+                return {
+                    ...log,
+                    details: parsedDetails
+                };
+            }),
             pagination: {
                 page,
                 pageSize,

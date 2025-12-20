@@ -7,8 +7,14 @@ export interface SessionData {
     isLoggedIn: boolean;
 }
 
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (process.env.NODE_ENV === 'production' && !sessionSecret) {
+    console.error('CRITICAL: SESSION_SECRET must be set in production!');
+}
+
 export const sessionOptions: SessionOptions = {
-    password: process.env.SESSION_SECRET || 'complex_password_at_least_32_characters_long_for_production',
+    password: sessionSecret || 'dev_secret_only_for_local_development_environment',
     cookieName: 'fair_competition_session',
     cookieOptions: {
         // 生产环境必须使用HTTPS，开发环境允许HTTP

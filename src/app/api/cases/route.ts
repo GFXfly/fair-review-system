@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin, AuthError, handleAuthError } from '@/lib/auth';
+import { requireAdmin, requireAuth, AuthError, handleAuthError } from '@/lib/auth';
 import { logSuccess } from '@/lib/audit-logger';
 
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q');
-    const type = searchParams.get('type');
-    const id = searchParams.get('id');
-
+export async function GET(request: NextRequest) {
     try {
+        await requireAuth(request);
+        const { searchParams } = new URL(request.url);
+        const query = searchParams.get('q');
+        const type = searchParams.get('type');
+        const id = searchParams.get('id');
+
         if (id) {
             const caseItem = await prisma.case.findUnique({
                 where: { id: parseInt(id) },
@@ -35,7 +36,6 @@ export async function GET(request: Request) {
             select: {
                 id: true,
                 title: true,
-                // content: false, // Don't fetch full content list for performance
                 violationType: true,
                 result: true,
                 publishDate: true,
@@ -47,20 +47,12 @@ export async function GET(request: Request) {
                         title: true
                     }
                 }
-                // embedding: false // Definitely don't fetch vectors
             }
         });
 
-        // Ensure shape matches what frontend expects (which seems to expect 'report' property)
-        // Since we used include (now select with nested select), 'cases' already has 'report' property.
-
         return NextResponse.json(cases);
     } catch (error) {
-        console.error('Error fetching cases:', error);
-        return NextResponse.json({
-            error: 'Failed to fetch cases',
-            details: error instanceof Error ? error.message : String(error)
-        }, { status: 500 });
+        return handleAuthError(error);
     }
 }
 

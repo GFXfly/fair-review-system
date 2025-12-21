@@ -65,7 +65,7 @@ export default function FileUpload({ onFileSelect }: Props) {
                         <>
                             <div className={styles.icon}>📄</div>
                             <p>点击或拖拽文件到此处上传</p>
-                            <span className={styles.hint}>仅支持 .docx 格式</span>
+                            <span className={styles.hint}>支持 .docx 格式</span>
                         </>
                     )}
                 </label>

@@ -1,0 +1,381 @@
+/* ========================================
+   反馈审核组件样式
+   ======================================== */
+
+/* 列表视图 */
+.listHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.pageTitle {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.badge {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.filterGroup {
+    display: flex;
+    gap: 8px;
+}
+
+.filterBtn {
+    padding: 8px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.filterBtn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.filterBtnActive {
+    padding: 8px 16px;
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+    background: #3b82f6;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 60px 20px;
+    color: #9ca3af;
+    font-size: 15px;
+}
+
+/* 表格样式 */
+.feedbackTable {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.tableHeader {
+    display: grid;
+    /* 文件名自适应(1fr)，其他列固定较宽的尺寸以保持整洁 */
+    grid-template-columns: 1fr 100px 90px 80px 90px 100px 70px 90px;
+    gap: 16px;
+    padding: 16px 24px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 14px;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.tableRow {
+    display: grid;
+    grid-template-columns: 1fr 100px 90px 80px 90px 100px 70px 90px;
+    gap: 16px;
+    padding: 16px 24px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 14px;
+    color: #374151;
+    align-items: center;
+    transition: background 0.15s;
+}
+
+.tableRow:last-child {
+    border-bottom: none;
+}
+
+.tableRow:hover {
+    background: #f9fafb;
+}
+
+.colFile {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.colUser {
+    color: #374151;
+}
+
+.colType {
+    color: #374151;
+}
+
+.colName {
+    color: #374151;
+}
+
+.colUsername {
+    color: #6b7280;
+}
+
+.colRisk {
+    /* 风险列 */
+}
+
+.colTime {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.colStatus {
+    /* 状态列 */
+}
+
+.colAction {
+    /* 操作列 */
+}
+
+.riskBadge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.statusPending {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.statusApprovedSmall {
+    color: #10b981;
+    font-size: 13px;
+}
+
+.statusRejectedSmall {
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.viewBtn {
+    padding: 6px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.viewBtn:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+/* 详情视图 */
+.backBtn {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: #3b82f6;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.backBtn:hover {
+    text-decoration: underline;
+}
+
+.detailCard {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.detailHeader {
+    padding: 20px 24px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.detailTitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.detailMeta {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.detailSection {
+    padding: 20px 24px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 16px;
+}
+
+.sectionIcon {
+    font-size: 16px;
+}
+
+.levelBadge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+.detailRow {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.rowLabel {
+    width: 80px;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: #6b7280;
+    padding-top: 2px;
+}
+
+.rowContent {
+    flex: 1;
+    font-size: 14px;
+    color: #374151;
+    line-height: 1.6;
+}
+
+.userFeedbackContent {
+    background: #fef2f2;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+.feedbackType {
+    font-weight: 600;
+    color: #ef4444;
+}
+
+.feedbackNote {
+    font-size: 13px;
+    color: #6b7280;
+    margin-top: 8px;
+}
+
+.detailActions {
+    padding: 20px 24px;
+    background: #fffbeb;
+}
+
+.actionHint {
+    font-size: 13px;
+    color: #92400e;
+    margin-bottom: 16px;
+}
+
+.actionBtns {
+    display: flex;
+    gap: 12px;
+}
+
+.btnApprove {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #10b981;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btnApprove:hover {
+    background: #059669;
+}
+
+.btnReject {
+    padding: 10px 20px;
+    border: 1px solid #ef4444;
+    border-radius: 8px;
+    background: white;
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btnReject:hover {
+    background: #fef2f2;
+}
+
+.btnView {
+    padding: 10px 20px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btnView:hover {
+    background: #f9fafb;
+}
+
+.detailStatus {
+    padding: 20px 24px;
+    text-align: center;
+}
+
+.statusApproved {
+    color: #10b981;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.statusRejected {
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+/* 旧样式保留（兼容） */
+.sectionTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+}

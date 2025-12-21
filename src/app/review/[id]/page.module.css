@@ -486,16 +486,16 @@
     font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
     font-size: 16pt;
     /* 三号 */
-    line-height: 1.8;
+    line-height: 1.6;
     color: #333;
 }
 
 .htmlContent :global(p) {
-    margin-bottom: 0.5em;
+    margin-top: 0;
+    margin-bottom: 0;
     text-indent: 2em;
     /* 首行缩进2字符 */
     text-align: justify;
-    min-height: 1.5em;
 }
 
 /* 表格内样式重置：不缩进，左对齐，字号可稍小 */
@@ -528,10 +528,10 @@
     font-weight: normal;
     /* 不加粗 */
     text-align: center;
-    margin-top: 1em;
-    margin-bottom: 1em;
+    margin-top: 0;
+    margin-bottom: 0;
     text-indent: 0;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 /* 一级标题（一、）：黑体，三号，首行缩进 */
@@ -543,9 +543,9 @@
     /* 不加粗 */
     text-indent: 2em;
     text-align: left;
-    margin-top: 1.2em;
-    margin-bottom: 0.6em;
-    line-height: 1.5;
+    margin-top: 0;
+    margin-bottom: 0;
+    line-height: 1.6;
 }
 
 /* 二级标题（（一））：楷体，三号，首行缩进 */
@@ -557,9 +557,9 @@
     /* 不加粗 */
     text-indent: 2em;
     text-align: left;
-    margin-top: 1em;
-    margin-bottom: 0.6em;
-    line-height: 1.5;
+    margin-top: 0;
+    margin-bottom: 0;
+    line-height: 1.6;
 }
 
 /* 三级标题（1.）：仿宋加粗，三号，首行缩进 */
@@ -573,9 +573,9 @@
     /* 不加粗 */
     text-indent: 2em;
     text-align: left;
-    margin-top: 0.8em;
-    margin-bottom: 0.5em;
-    line-height: 1.5;
+    margin-top: 0;
+    margin-bottom: 0;
+    line-height: 1.6;
 }
 
 /* Risk highlighting in HTML content */

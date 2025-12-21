@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
+import FeedbackReviewPanel from './FeedbackReview';
 
 interface User {
     id: number;
@@ -64,7 +65,7 @@ function AdminContent() {
     // Sync state with URL params on mount/update
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab && ['monitor', 'users', 'reviews', 'config'].includes(tab)) {
+        if (tab && ['monitor', 'users', 'reviews', 'feedbacks', 'config'].includes(tab)) {
             setActiveTab(tab);
         }
     }, [searchParams]);
@@ -304,6 +305,12 @@ function AdminContent() {
                         onClick={() => handleTabChange('reviews')}
                     >
                         <span>📑</span> 审计日志
+                    </div>
+                    <div
+                        className={`${styles.menuItem} ${activeTab === 'feedbacks' ? styles.menuItemActive : ''}`}
+                        onClick={() => handleTabChange('feedbacks')}
+                    >
+                        <span>💬</span> 反馈审核
                     </div>
                     <div
                         className={`${styles.menuItem} ${activeTab === 'config' ? styles.menuItemActive : ''}`}
@@ -559,6 +566,10 @@ function AdminContent() {
                                 </table>
                             </div>
                         </>
+                    )}
+
+                    {activeTab === 'feedbacks' && (
+                        <FeedbackReviewPanel />
                     )}
 
                     {activeTab === 'config' && (

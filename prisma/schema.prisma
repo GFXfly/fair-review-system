@@ -76,6 +76,8 @@ model ReviewRecord {
   status    String       @default("pending") // pending, completed, failed
   riskCount Int          @default(0)
   summary   String?      // 全文摘要
+  originalText String?    // 原始文本全文
+  originalHtml String?    // 原始HTML全文
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -83,6 +85,7 @@ model ReviewRecord {
   user      User?        @relation(fields: [userId], references: [id])
 
   risks     ReviewRisk[]
+  feedbacks RiskFeedback[]
 
   @@index([userId, status])
   @@index([createdAt(sort: Desc)])
@@ -104,7 +107,14 @@ model ReviewRisk {
   law         String?      // 违反条款
   relatedCase String?      // 相似案例
   
+  // 辩论系统记录
+  defense      String?      // 抗辩理由
+  rulingReason String?      // 裁决理由
+  confidence   Int?         // 裁决置信度 (0-100)
+
   createdAt   DateTime     @default(now())
+  
+  feedbacks   RiskFeedback[]
 }
 
 // 用户系统
@@ -118,8 +128,10 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  reviews    ReviewRecord[]
-  auditLogs  AuditLog[]
+  reviews                ReviewRecord[]
+  auditLogs              AuditLog[]
+  feedbacks              RiskFeedback[]   @relation("UserFeedbacks")
+  adminReviewedFeedbacks RiskFeedback[]   @relation("AdminFeedbackReviews")
 }
 
 // 审计日志
@@ -141,4 +153,34 @@ model AuditLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+}
+
+// 风险反馈
+model RiskFeedback {
+  id              Int      @id @default(autoincrement())
+  
+  // 关联信息
+  reviewId        String
+  review          ReviewRecord @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  riskId          Int
+  risk            ReviewRisk   @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  userId          Int
+  user            User         @relation("UserFeedbacks", fields: [userId], references: [id])
+  
+  // 用户反馈（极简：只有一个boolean）
+  isAccurate      Boolean      // true=用户认为准确, false=用户认为不准确
+  
+  // 管理员审核（仅当isAccurate=false时需要审核）
+  adminStatus     String       @default("pending") // "pending" | "approved" | "rejected"
+  adminUserId     Int?         // 审核的管理员ID
+  adminUser       User?        @relation("AdminFeedbackReviews", fields: [adminUserId], references: [id])
+  adminComment    String?      // 管理员审核意见（可选）
+  adminReviewedAt DateTime?    // 审核时间
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  @@index([adminStatus, isAccurate])
+  @@index([createdAt(sort: Desc)])
+  @@index([reviewId, riskId])
 }

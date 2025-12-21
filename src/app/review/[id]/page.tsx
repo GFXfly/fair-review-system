@@ -6,6 +6,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import RiskFeedback from '@/components/RiskFeedback';
 
 // --- Mock Data ---
 
@@ -102,6 +103,7 @@ export default function ReviewPage() {
     const [risks, setRisks] = useState<any[]>([]);
     const [summary, setSummary] = useState("正在加载分析结果...");
     const [fileName, setFileName] = useState("正在加载...");
+    const [realReviewId, setRealReviewId] = useState<string | null>(null); // 存储真实的数据库ID
 
     const docContainerRef = useRef<HTMLDivElement>(null);
 
@@ -325,6 +327,11 @@ export default function ReviewPage() {
                         setFileName(data.fileName);
                     }
 
+                    // 保存真实的数据库ID
+                    if (data.id) {
+                        setRealReviewId(data.id);
+                    }
+
                     // 1. Set Document Content
                     let newDocContent: any[] = [];
 
@@ -399,6 +406,9 @@ export default function ReviewPage() {
                 })
                 .then(data => {
                     if (data.fileName) setFileName(data.fileName);
+
+                    // 设置真实的reviewId（对于从数据库加载的记录，就是id本身）
+                    setRealReviewId(id);
 
                     let newDocContent: any[] = [];
                     if (data.text) {
@@ -479,6 +489,14 @@ export default function ReviewPage() {
             });
 
             if (risk) {
+                console.log('[Risk Click] Risk object:', {
+                    id: risk.id,
+                    hasSnippet: !!risk.snippet,
+                    snippetLength: risk.snippet?.length || 0,
+                    hasParagraphIds: !!risk.paragraphIds,
+                    snippet: risk.snippet?.substring(0, 100)
+                });
+
                 // For paragraph mode (old)
                 if (risk.paragraphIds && risk.paragraphIds.length > 0) {
                     const element = document.getElementById(risk.paragraphIds[0]);
@@ -489,18 +507,31 @@ export default function ReviewPage() {
                 else if (risk.snippet) {
                     const htmlContainers = document.querySelectorAll('[data-html-content="true"]');
 
+                    console.log(`[Risk Click] HTML containers found: ${htmlContainers.length}`);
+
                     if (htmlContainers.length > 0) {
                         console.log(`[Risk Click] Searching in ${htmlContainers.length} HTML containers`);
 
                         // Extract meaningful text from snippet
-                        let searchText = risk.snippet.replace(/\.\.\./g, ' ').replace(/^"|"$/g, '').trim();
+                        // Remove chapter/section titles (e.g., "第二部分投标人须知前附表第13条：")
+                        let searchText = risk.snippet
+                            .replace(/^[^：]*：\s*/g, '')  // Remove "XXX: " prefix
+                            .replace(/\.\.\./g, ' ')
+                            .replace(/^"|"$/g, '')
+                            .trim();
+
+                        // If the cleaned text is too short, try using the original
+                        if (searchText.length < 20 && risk.snippet.length > searchText.length) {
+                            console.log('[Risk Click] Cleaned text too short, using original snippet');
+                            searchText = risk.snippet.replace(/\.\.\./g, ' ').replace(/^"|"$/g, '').trim();
+                        }
 
                         // Increase truncation limit to 500 for better matching
                         if (searchText.length > 500) {
                             searchText = searchText.substring(0, 500);
                         }
 
-                        console.log('[Risk Click] Searching for:', searchText);
+                        console.log('[Risk Click] Searching for:', searchText.substring(0, 100) + '...');
 
                         if (searchText.length > 5) {
                             // Try highlighting in each container until one succeeds
@@ -526,11 +557,17 @@ export default function ReviewPage() {
                                 setTimeout(() => scrollToHighlight(), 150);
                             } else {
                                 console.warn('[Risk Click] All containers searched, no match found');
+                                console.warn('[Risk Click] Search text was:', searchText.substring(0, 200));
                             }
+                        } else {
+                            console.warn('[Risk Click] Search text too short:', searchText);
                         }
                     } else {
                         console.warn('[Risk Click] No HTML containers found');
+                        console.warn('[Risk Click] Available elements:', document.querySelectorAll('[data-html-content]').length);
                     }
+                } else {
+                    console.warn('[Risk Click] No snippet or paragraphIds available for highlighting');
                 }
             }
         }
@@ -1220,6 +1257,14 @@ export default function ReviewPage() {
                                                 {activeRisk.suggestion}
                                             </div>
                                         </div>
+
+                                        {/* Feedback Section */}
+                                        {realReviewId && (
+                                            <RiskFeedback
+                                                reviewId={realReviewId}
+                                                riskId={activeRisk.id}
+                                            />
+                                        )}
                                     </div>
                                 )}
                             </>

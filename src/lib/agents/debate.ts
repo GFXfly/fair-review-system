@@ -27,8 +27,8 @@ export async function runDefender(risk: AuditIssue, docText: string): Promise<st
 【任务】
 请阅读以下文件全文片段（或全文），尝试针对上述指控进行辩护。
 思考方向：
-1. 该条款是否属于《公平竞争审查条例》规定的例外情形（如国家安全、扶贫开发、救灾抢险等）？
-2. 该条款的“限制”是否具有合理性（如为了实现特定的社会公共利益，且没有更好替代方案）？
+1. 该条款是否属于公平竞争审查相关法规（如《公平竞争审查条例》、地方审查细则）规定的例外情形？
+2. 该条款的“限制”是否具有必要性、合理性（如为了实现特定的社会公共利益，且没有更好替代方案）？
 3. 上下文中是否有其他前置条件减免了其违规性？
 
 【文件内容】
@@ -82,7 +82,7 @@ ${defense}
 
 1. **DISMISS（驳回风险）** - 仅在以下情况才可选择：
    必要条件（全部满足）：
-   ✓ 辩护明确引用了《公平竞争审查条例》第五条的例外情形（如维护国家安全、扶贫开发、救灾抢险等）
+   ✓ 辩护明确引用了公平竞争审查相关法规（如《公平竞争审查条例》第五条等）所规定的例外情形
    ✓ 文件内容确实符合该例外情形，且有充分证据支持
    ✓ 例外适用范围明确、限期清晰，不存在滥用可能
 
@@ -159,12 +159,15 @@ ${defense}
             return null; // Remove this risk
         }
 
-        // Return revised risk
+        // Return revised risk with additional debate info
         return {
             ...risk,
             risk_level: ruling.revised_risk?.risk_level || risk.risk_level,
             description: ruling.revised_risk?.description || risk.description,
-            suggestion: ruling.revised_risk?.suggestion || risk.suggestion
+            suggestion: ruling.revised_risk?.suggestion || risk.suggestion,
+            defense: defense,
+            rulingReason: ruling.ruling_reason,
+            confidence: ruling.confidence
         };
 
     } catch (e) {

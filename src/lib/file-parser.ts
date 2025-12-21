@@ -114,7 +114,12 @@ export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
 
                 displayHtml = displayHtml.replace(/<p\b([^>]*)>([\s\S]*?)<\/p>/gi, (match, attributes, content) => {
                     // 1. Extract plain text to check patterns ignoring tags (like <strong>, <span>)
-                    const plainText = content.replace(/<[^>]+>/g, '').trim();
+                    const plainText = content.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+                    // 1.1 Skip truly empty paragraphs to avoid excessive vertical spacing
+                    if (plainText.length === 0) {
+                        return '';
+                    }
 
                     // 2. Level 1 Pattern: "一、", "二、"
                     // Must be short (< 50 chars) to avoid matching long paragraphs that happen to start with these.
@@ -154,7 +159,7 @@ export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
                 console.error('Mammoth extraction failed for:', fileName, mammothError);
                 throw new Error(`无法解析 Word 文档 (${fileName})。可能原因：\n1. 文件虽然后缀是 .docx，但实际是旧版 .doc 格式；\n2. 文档被加密保护。\n\n建议您用 Word/WPS 打开文档，选择"另存为" .docx 格式后再上传。`);
             }
-        }
+        } // This closing brace was missing for the 'if' block
         // 2. Support Plain Text
         else if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
             const textDecoder = new TextDecoder('utf-8');

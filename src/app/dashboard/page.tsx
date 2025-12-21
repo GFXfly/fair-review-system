@@ -333,7 +333,25 @@ function DashboardContent() {
 
         } catch (error: any) {
             console.error('Error starting review:', error);
-            alert(`审查启动失败：${error.message}`);
+
+            // Build detailed error message
+            let errorMessage = '审查启动失败';
+
+            if (error.message) {
+                errorMessage += `\n\n错误详情：${error.message}`;
+            }
+
+            // Show suggestion if available
+            if (error.suggestion) {
+                errorMessage += `\n\n建议：${error.suggestion}`;
+            }
+
+            // In development, show technical details
+            if (process.env.NODE_ENV === 'development' && error.technicalDetails) {
+                errorMessage += `\n\n技术细节：${error.technicalDetails}`;
+            }
+
+            alert(errorMessage);
             setIsAnalyzing(false);
         }
     };

@@ -12,6 +12,100 @@ import { createErrorResponse } from '@/lib/error-handler';
 import { getCurrentUser, requireAuth } from '@/lib/auth';
 import { applyRateLimit, llmAnalysisRateLimiter, getClientId } from '@/lib/rate-limit';
 
+/**
+ * Deduplicate risks based on location text similarity
+ * Merges risks that refer to the same clause/paragraph
+ */
+function deduplicateRisks(risks: any[]): any[] {
+    if (risks.length <= 1) return risks;
+
+    // Normalize text for comparison (remove whitespace, punctuation, lowercase)
+    const normalize = (text: string) => {
+        return text
+            .replace(/[\s\u3000]/g, '')
+            .replace(/[,，.。、;；:：!！?？"""''()[\\]【】《》<>]/g, '')
+            .toLowerCase();
+    };
+
+    // Calculate similarity between two strings
+    const similarity = (a: string, b: string): number => {
+        const normA = normalize(a);
+        const normB = normalize(b);
+
+        if (!normA || !normB) return 0;
+
+        // Use Jaccard similarity for short texts
+        const setA = new Set(normA.split(''));
+        const setB = new Set(normB.split(''));
+
+        const intersection = new Set([...setA].filter(x => setB.has(x)));
+        const union = new Set([...setA, ...setB]);
+
+        return intersection.size / union.size;
+    };
+
+    const deduplicated: any[] = [];
+    const processed = new Set<number>();
+
+    risks.forEach((risk, i) => {
+        if (processed.has(i)) return;
+
+        // Find all similar risks (similarity > 60%)
+        const similarRisks = [risk];
+        for (let j = i + 1; j < risks.length; j++) {
+            if (processed.has(j)) continue;
+
+            const sim = similarity(risk.location || '', risks[j].location || '');
+
+            // If similarity > 60%, consider them duplicates
+            if (sim > 0.6) {
+                console.log(`[Deduplication] Found similar risks (${(sim * 100).toFixed(1)}%):`,
+                    `\n  Risk ${i + 1}: ${risk.location?.substring(0, 50)}...`,
+                    `\n  Risk ${j + 1}: ${risks[j].location?.substring(0, 50)}...`);
+                similarRisks.push(risks[j]);
+                processed.add(j);
+            }
+        }
+
+        // Merge similar risks - keep the one with higher risk level
+        const riskLevelPriority: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+        const merged = similarRisks.reduce((best, current) => {
+            const bestLevel = riskLevelPriority[best.risk_level] || 0;
+            const currentLevel = riskLevelPriority[current.risk_level] || 0;
+
+            if (currentLevel > bestLevel) {
+                // Keep the higher-level risk
+                // Merge descriptions if they differ
+                if (current.description !== best.description) {
+                    current.description = `${current.description}\n\n【相关风险】${best.description}`;
+                }
+                // Keep the shorter location for better highlighting (usually more precise)
+                if (best.location && (!current.location || best.location.length < current.location.length)) {
+                    current.location = best.location;
+                }
+                return current;
+            } else {
+                // Keep the best risk
+                // Append current description to best if different
+                if (current.description !== best.description) {
+                    best.description = `${best.description}\n\n【相关风险】${current.description}`;
+                }
+                // Keep the shorter location for better highlighting
+                if (current.location && (!best.location || current.location.length < best.location.length)) {
+                    best.location = current.location;
+                }
+                return best;
+            }
+        });
+
+        deduplicated.push(merged);
+        processed.add(i);
+    });
+
+    return deduplicated;
+}
+
+
 export async function POST(req: NextRequest) {
     let userId: number | null = null;
     let fileName: string = '';
@@ -108,22 +202,28 @@ export async function POST(req: NextRequest) {
                 auditor: [],
                 radar: null,
                 text,
-                html
+                html,
+                originalText: text,
+                originalHtml: html
             });
         }
 
         // 1.5 Guidance Counselor (Fetch expert Q&A)
-        const guidance = await runGuidanceCounselor(text);
+        const guidance = await runGuidanceCounselor(text, gatekeeperResult.category);
 
         // 2. Auditor
         const auditorResults = await runAuditor(gatekeeperResult.category, text, guidance);
 
+        // 2.5 Deduplicate similar risks based on location text similarity
+        const deduplicatedRisks = deduplicateRisks(auditorResults);
+        console.log(`[Deduplication] Reduced ${auditorResults.length} risks to ${deduplicatedRisks.length} unique risks`);
+
         // --- Debate Agents Loop (Parallelized for Performance) ---
-        console.log('[Debate] Starting debate loop for', auditorResults.length, 'risks');
+        console.log('[Debate] Starting debate loop for', deduplicatedRisks.length, 'risks');
 
         // Process all risks in parallel instead of sequentially
         const debateResults = await Promise.all(
-            auditorResults.map(async (risk) => {
+            deduplicatedRisks.map(async (risk) => {
                 try {
                     console.log(`[Debate] Defending risk: ${risk.description.substring(0, 30)}...`);
 
@@ -166,6 +266,8 @@ export async function POST(req: NextRequest) {
                 fileSize: file.size,
                 status: 'completed',
                 summary: `文件类型：${gatekeeperResult.category}。AI 判定理由：${gatekeeperResult.reason}`,
+                originalText: text,
+                originalHtml: html,
                 riskCount: finalRisks.length,
                 userId: userId,
                 risks: {
@@ -177,11 +279,29 @@ export async function POST(req: NextRequest) {
                         location: r.location,
                         suggestion: r.suggestion,
                         law: r.violated_law,
-                        relatedCase: r.reference
+                        relatedCase: r.reference,
+                        defense: r.defense || null,
+                        rulingReason: r.rulingReason || null,
+                        confidence: r.confidence || null
                     }))
+                }
+            },
+            // 同时获取创建的风险点ID
+            include: {
+                risks: {
+                    select: {
+                        id: true,
+                        description: true
+                    }
                 }
             }
         });
+
+        // 将数据库ID合并到返回结果中
+        const risksWithDbId = finalRisks.map((r, index) => ({
+            ...r,
+            id: savedRecord.risks[index]?.id || r.id // 使用数据库ID
+        }));
 
         // 记录分析成功
         await logSuccess('analyze_file', userId, fileName, {
@@ -194,7 +314,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             id: savedRecord.id,
             gatekeeper: gatekeeperResult,
-            auditor: finalRisks,
+            auditor: risksWithDbId, // 返回带有数据库ID的风险点
             radar: radarAlert,
             text: text, // Return the extracted text for AI
             html: html  // Return the HTML for frontend display

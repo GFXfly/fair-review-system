@@ -2,10 +2,46 @@
 import { callLLM } from '@/lib/llm';
 import { prisma } from '@/lib/prisma';
 
-export async function runGuidanceCounselor(text: string): Promise<string> {
+export async function runGuidanceCounselor(text: string, category: string = ''): Promise<string> {
     console.log('[GuidanceCounselor] Starting retrieval of expert Q&A criteria...');
 
     try {
+        let guidanceText = "";
+
+        // 0. 根据文件类型加载核心法规
+        if (category === 'BIDDING') {
+            // 招标文件 → 加载《浙江省招标投标领域公平竞争审查细则》
+            console.log('[GuidanceCounselor] Category is BIDDING, fetching Zhejiang rules...');
+            const zhejiangRules = await prisma.regulation.findFirst({
+                where: { title: '浙江省招标投标领域公平竞争审查细则' },
+                select: { content: true }
+            });
+
+            if (zhejiangRules) {
+                guidanceText += "★【浙江省招标投标领域公平竞争审查细则（招标文件类最高优先级标准）】：\n";
+                guidanceText += zhejiangRules.content;
+                guidanceText += "\n\n（针对招标文件，请重点对照上述细则进行审查，若违反直接判定为违规。）\n\n";
+            } else {
+                console.warn('[GuidanceCounselor] Zhejiang rules not found in DB!');
+            }
+        } else {
+            // 其他政策文件/政府协议 → 加载《公平竞争审查条例实施办法》
+            console.log('[GuidanceCounselor] Category is', category, ', fetching Implementation Rules...');
+            const implementationRules = await prisma.regulation.findFirst({
+                where: { title: '公平竞争审查条例实施办法' },
+                select: { content: true }
+            });
+
+            if (implementationRules) {
+                guidanceText += "★【公平竞争审查条例实施办法（第9-24条审查标准）】：\n";
+                guidanceText += implementationRules.content;
+                guidanceText += "\n\n（针对政策文件/政府协议，请重点对照上述实施办法的审查标准进行审查。）\n\n";
+            } else {
+                console.warn('[GuidanceCounselor] Implementation Rules not found in DB!');
+            }
+        }
+
+
         // 1. Fetch all QA titles
         // Since there are only ~60-100, this is feasible context for an LLM
         const allQAs = await prisma.regulation.findMany({
@@ -86,7 +122,7 @@ export async function runGuidanceCounselor(text: string): Promise<string> {
         });
 
         // 4. Format the output
-        let guidanceText = "★【总局权威答疑口径（最高优先级，必须严格执行）】：\n";
+        guidanceText += "★【总局权威答疑口径（最高优先级，必须严格执行）】：\n";
         selectedQAs.forEach((qa, idx) => {
             guidanceText += `\n【规则 ${idx + 1}】${qa.title}\n`;
             guidanceText += `👉 官方认定标准：${qa.content}\n`;

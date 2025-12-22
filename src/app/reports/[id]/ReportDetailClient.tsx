@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
@@ -33,11 +33,51 @@ interface Props {
     report: Report;
 }
 
+// 高亮文本组件
+function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
+    if (!keyword || !text) {
+        return <>{text}</>;
+    }
+
+    // 创建不区分大小写的正则表达式
+    const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+
+    return (
+        <>
+            {parts.map((part, index) => {
+                if (part.toLowerCase() === keyword.toLowerCase()) {
+                    return (
+                        <mark
+                            key={index}
+                            className={styles.highlightMark}
+                            style={{
+                                backgroundColor: '#FBBF24',
+                                color: '#78350F',
+                                padding: '1px 2px',
+                                borderRadius: '2px',
+                                fontWeight: 500
+                            }}
+                        >
+                            {part}
+                        </mark>
+                    );
+                }
+                return <span key={index}>{part}</span>;
+            })}
+        </>
+    );
+}
+
 export default function ReportDetailClient({ report }: Props) {
     const searchParams = useSearchParams();
     const [activeCaseId, setActiveCaseId] = useState<number | null>(report.cases[0]?.id || null);
     const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const isScrollingRef = useRef(false);
+    const firstHighlightRef = useRef<HTMLElement | null>(null);
+
+    // 获取高亮关键词
+    const highlightKeyword = searchParams.get('highlight') || '';
 
     // Construct back link with page parameter
     const page = searchParams.get('page') || '1';
@@ -54,6 +94,22 @@ export default function ReportDetailClient({ report }: Props) {
             }, 500);
         }
     };
+
+    // 自动滚动到第一个高亮位置
+    useEffect(() => {
+        if (highlightKeyword) {
+            // 延迟执行以确保 DOM 已渲染
+            setTimeout(() => {
+                const firstMark = document.querySelector(`.${styles.docPaper} mark`);
+                if (firstMark) {
+                    firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // 添加闪烁动画效果
+                    (firstMark as HTMLElement).style.animation = 'highlightPulse 1.5s ease-in-out 2';
+                }
+            }, 300);
+        }
+    }, [highlightKeyword]);
 
     // Auto-detect active section on scroll
     useEffect(() => {
@@ -156,30 +212,40 @@ export default function ReportDetailClient({ report }: Props) {
                                         ▶
                                     </div>
                                     <div className={styles.navItemTitle}>
-                                        案例{index + 1}：{item.title}
+                                        案例{index + 1}：<HighlightedText text={item.title} keyword={highlightKeyword} />
                                     </div>
                                 </div>
                                 <div className={styles.navItemContent}>
                                     <div className={styles.navItemDetails}>
                                         <div className={styles.navItemMeta}>
                                             <span className={styles.navItemMetaLabel}>违　　反：</span>
-                                            <span className={styles.navItemMetaValue}>{item.violationClause || ''}</span>
+                                            <span className={styles.navItemMetaValue}>
+                                                <HighlightedText text={item.violationClause || ''} keyword={highlightKeyword} />
+                                            </span>
                                         </div>
                                         <div className={styles.navItemMeta}>
                                             <span className={styles.navItemMetaLabel}>文件名称：</span>
-                                            <span className={styles.navItemMetaValue}>{item.documentName || ''}</span>
+                                            <span className={styles.navItemMetaValue}>
+                                                <HighlightedText text={item.documentName || ''} keyword={highlightKeyword} />
+                                            </span>
                                         </div>
                                         <div className={styles.navItemMeta}>
                                             <span className={styles.navItemMetaLabel}>发文机构：</span>
-                                            <span className={styles.navItemMetaValue}>{item.documentOrg || ''}</span>
+                                            <span className={styles.navItemMetaValue}>
+                                                <HighlightedText text={item.documentOrg || ''} keyword={highlightKeyword} />
+                                            </span>
                                         </div>
                                         <div className={styles.navItemMeta}>
                                             <span className={styles.navItemMetaLabel}>地　　区：</span>
-                                            <span className={styles.navItemMetaValue}>{item.province || ''}</span>
+                                            <span className={styles.navItemMetaValue}>
+                                                <HighlightedText text={item.province || ''} keyword={highlightKeyword} />
+                                            </span>
                                         </div>
                                         <div className={styles.navItemMeta}>
                                             <span className={styles.navItemMetaLabel}>违规内容：</span>
-                                            <span className={styles.navItemMetaValue}>{item.violationDetail || ''}</span>
+                                            <span className={styles.navItemMetaValue}>
+                                                <HighlightedText text={item.violationDetail || ''} keyword={highlightKeyword} />
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -193,7 +259,9 @@ export default function ReportDetailClient({ report }: Props) {
             <div className={styles.main}>
                 <div className={styles.docContainer}>
                     <div className={styles.docPaper}>
-                        <h1 className={styles.reportTitle}>{report.title}</h1>
+                        <h1 className={styles.reportTitle}>
+                            <HighlightedText text={report.title} keyword={highlightKeyword} />
+                        </h1>
                         <div className={styles.reportMeta}>
                             <span>发布日期：{report.publishDate}</span>
                             <span>发布机构：{report.department}</span>
@@ -207,23 +275,23 @@ export default function ReportDetailClient({ report }: Props) {
                                 className={`${styles.caseSection} ${activeCaseId === item.id ? styles.caseSectionActive : ''}`}
                             >
                                 <div className={styles.caseTitle}>
-                                    {index + 1}. {item.title}
+                                    {index + 1}. <HighlightedText text={item.title} keyword={highlightKeyword} />
                                 </div>
                                 <div className={styles.caseContent}>
                                     {item.content.split(/\r?\n/).map((para, i) => (
                                         para.trim() ? (
                                             <div key={i} style={{ textIndent: '2em', marginBottom: '8px' }}>
-                                                {para.trim()}
+                                                <HighlightedText text={para.trim()} keyword={highlightKeyword} />
                                             </div>
                                         ) : null
                                     ))}
                                 </div>
                                 <div className={styles.caseMeta}>
                                     <span className={`${styles.tag} ${styles.tagViolation}`}>
-                                        违规类型：{item.violationType}
+                                        违规类型：<HighlightedText text={item.violationType} keyword={highlightKeyword} />
                                     </span>
                                     <span className={`${styles.tag} ${styles.tagResult}`}>
-                                        处理结果：{item.result}
+                                        处理结果：<HighlightedText text={item.result} keyword={highlightKeyword} />
                                     </span>
                                 </div>
                             </div>

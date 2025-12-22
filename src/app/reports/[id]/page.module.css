@@ -257,3 +257,42 @@
     background-color: #ecfdf5;
     color: #10b981;
 }
+
+/* 高亮关键词样式 */
+.highlightMark {
+    background-color: #FBBF24;
+    color: #78350F;
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 500;
+}
+
+/* 高亮闪烁动画 */
+@keyframes highlightPulse {
+    0%, 100% {
+        background-color: #FBBF24;
+        box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    }
+    50% {
+        background-color: #FCD34D;
+        box-shadow: 0 0 8px 4px rgba(251, 191, 36, 0.5);
+    }
+}
+
+/* 高亮提示条样式 */
+.highlightBanner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background-color: #FEF3C7;
+    border-bottom: 1px solid #F59E0B;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #92400E;
+}

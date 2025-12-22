@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 
 interface Case {
@@ -22,7 +23,44 @@ interface Props {
     relatedCases: Case[];
 }
 
+// 高亮文本组件
+function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
+    if (!keyword || !text) {
+        return <>{text}</>;
+    }
+
+    // 创建不区分大小写的正则表达式
+    const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+
+    return (
+        <>
+            {parts.map((part, index) => {
+                if (part.toLowerCase() === keyword.toLowerCase()) {
+                    return (
+                        <mark
+                            key={index}
+                            style={{
+                                backgroundColor: '#FBBF24',
+                                color: '#78350F',
+                                padding: '1px 2px',
+                                borderRadius: '2px',
+                                fontWeight: 500
+                            }}
+                        >
+                            {part}
+                        </mark>
+                    );
+                }
+                return <span key={index}>{part}</span>;
+            })}
+        </>
+    );
+}
+
 export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
+    const searchParams = useSearchParams();
+
     // If no related cases (or only self), just show self.
     // But usually relatedCases includes self if we fetched by sourceTitle.
     // Let's ensure relatedCases is populated.
@@ -31,6 +69,13 @@ export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
     const [activeCaseId, setActiveCaseId] = useState<number>(currentCase.id);
     const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const isScrollingRef = useRef(false);
+
+    // 获取高亮关键词
+    const highlightKeyword = searchParams.get('highlight') || '';
+
+    // Construct back link
+    const page = searchParams.get('page') || '1';
+    const backLink = `/dashboard?tab=cases&page=${page}`;
 
     const handleNavClick = (id: number) => {
         setActiveCaseId(id);
@@ -43,6 +88,19 @@ export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
             }, 500);
         }
     };
+
+    // 自动滚动到第一个高亮位置
+    useEffect(() => {
+        if (highlightKeyword) {
+            setTimeout(() => {
+                const firstMark = document.querySelector(`.${styles.docPaper} mark`);
+                if (firstMark) {
+                    firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    (firstMark as HTMLElement).style.animation = 'highlightPulse 1.5s ease-in-out 2';
+                }
+            }, 300);
+        }
+    }, [highlightKeyword]);
 
     // Optional: Auto-detect active section on scroll
     useEffect(() => {
@@ -75,7 +133,7 @@ export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
 
     // Initial scroll to current case
     useEffect(() => {
-        if (currentCase.id) {
+        if (currentCase.id && !highlightKeyword) {
             const element = sectionRefs.current[currentCase.id];
             if (element) {
                 element.scrollIntoView({ behavior: 'auto', block: 'center' });
@@ -101,7 +159,7 @@ export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
                             onClick={() => handleNavClick(item.id)}
                         >
                             <div className={styles.navItemTitle}>
-                                {index + 1}. {item.title}
+                                {index + 1}. <HighlightedText text={item.title} keyword={highlightKeyword} />
                             </div>
                         </div>
                     ))}
@@ -111,16 +169,20 @@ export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
             {/* Right Content */}
             <div className={styles.main}>
                 <header className={styles.header}>
-                    <Link href="/dashboard?tab=cases" className={styles.backLink}>
+                    <Link href={backLink} className={styles.backLink}>
                         ← 返回案例库
                     </Link>
-                    <div style={{ fontWeight: 600 }}>{sourceTitle}</div>
+                    <div style={{ fontWeight: 600 }}>
+                        <HighlightedText text={sourceTitle} keyword={highlightKeyword} />
+                    </div>
                     <div style={{ width: '80px' }}></div> {/* Spacer */}
                 </header>
 
                 <div className={styles.docContainer}>
                     <div className={styles.docPaper}>
-                        <h1 className={styles.reportTitle}>{sourceTitle}</h1>
+                        <h1 className={styles.reportTitle}>
+                            <HighlightedText text={sourceTitle} keyword={highlightKeyword} />
+                        </h1>
                         <div className={styles.reportMeta}>
                             <span>发布日期：{publishDate}</span>
                             <span>发布机构：{cases[0]?.documentOrg || '未知机构'}</span>
@@ -134,23 +196,23 @@ export default function CaseDetailClient({ currentCase, relatedCases }: Props) {
                                 className={`${styles.caseSection} ${activeCaseId === item.id ? styles.caseSectionActive : ''}`}
                             >
                                 <div className={styles.caseTitle}>
-                                    {index + 1}. {item.title}
+                                    {index + 1}. <HighlightedText text={item.title} keyword={highlightKeyword} />
                                 </div>
                                 <div className={styles.caseContent}>
                                     {item.content.split(/\r?\n/).map((para, i) => (
                                         para.trim() ? (
                                             <div key={i} style={{ textIndent: '2em', marginBottom: '8px' }}>
-                                                {para.trim()}
+                                                <HighlightedText text={para.trim()} keyword={highlightKeyword} />
                                             </div>
                                         ) : null
                                     ))}
                                 </div>
                                 <div className={styles.caseMeta}>
                                     <span className={`${styles.tag} ${styles.tagViolation}`}>
-                                        违规类型：{item.violationType}
+                                        违规类型：<HighlightedText text={item.violationType} keyword={highlightKeyword} />
                                     </span>
                                     <span className={`${styles.tag} ${styles.tagResult}`}>
-                                        处理结果：{item.result}
+                                        处理结果：<HighlightedText text={item.result} keyword={highlightKeyword} />
                                     </span>
                                 </div>
                             </div>

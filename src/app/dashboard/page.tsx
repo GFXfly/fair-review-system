@@ -305,7 +305,7 @@ function DashboardContent() {
 
             // Simulate multi-agent workflow progress
             setTimeout(() => setAnalyzingStatus("Gatekeeper 正在进行文档语义解析..."), 1000);
-            setTimeout(() => setAnalyzingStatus("正在全库检索 427+ 起典型违规案例向量..."), 2500);
+            setTimeout(() => setAnalyzingStatus("正在全库检索 19 部法规、500+ 起典型违规案例向量..."), 2500);
             setTimeout(() => setAnalyzingStatus("Auditor 与 RiskRadar 正在进行对抗性辩论验证..."), 4500);
             setTimeout(() => setAnalyzingStatus("正在融合多方意见生成最终审查报告..."), 6500);
 
@@ -379,12 +379,15 @@ function DashboardContent() {
         const isCase = activeTab === 'cases' || item.violationType || item.result;
 
         if (isCase) {
+            // Build highlight parameter for keyword highlighting in detail page
+            const highlightParam = searchQuery.trim() ? `&highlight=${encodeURIComponent(searchQuery.trim())}` : '';
+
             // Navigate to the report page if reportId exists
             if (item.reportId) {
-                router.push(`/reports/${item.reportId}?from=cases&page=${casePage}`);
+                router.push(`/reports/${item.reportId}?from=cases&page=${casePage}${highlightParam}`);
             } else {
                 // Fallback to individual case page if no report
-                router.push(`/cases/${item.id}?from=cases&page=${casePage}`);
+                router.push(`/cases/${item.id}?from=cases&page=${casePage}${highlightParam}`);
             }
         } else {
             // It is a Regulation, fetch full content if missing

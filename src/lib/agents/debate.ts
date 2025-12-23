@@ -1,5 +1,5 @@
 
-import { callLLM, DEEPSEEK_MODEL, QWEN_MODEL, GLM_MODEL } from '@/lib/llm';
+import { callLLM, DEEPSEEK_MODEL, DEEPSEEK_REASONER_MODEL, QWEN_MODEL, GLM_MODEL } from '@/lib/llm';
 import { TextChunker } from '@/lib/text-utils';
 import { AuditIssue } from './auditor';
 import { APP_CONFIG } from '@/lib/config';
@@ -7,8 +7,8 @@ import { APP_CONFIG } from '@/lib/config';
 // ==========================================
 // 🔥 优化2：模型配置（能力对等的多样性）
 // ==========================================
-export const DEBATE_MODEL = QWEN_MODEL;      // Defender: Qwen 72B（创造性辩护）
-export const JUDGE_MODEL = DEEPSEEK_MODEL;   // Judge: DeepSeek V3（强力裁决）
+export const DEBATE_MODEL = QWEN_MODEL;      // Defender: Qwen3-235B-A22B（最强辩护能力）
+export const JUDGE_MODEL = DEEPSEEK_REASONER_MODEL;   // Judge: DeepSeek V3.2 思考模式（强力裁决）
 
 /**
  * Agent B: The Defender

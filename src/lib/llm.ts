@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
 // Lazy load the client to ensure we pick up the latest env vars
-// Helper to get DeepSeek client (Official)
+// Helper to get DeepSeek client
 function getDeepSeekClient() {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     const baseURL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
@@ -16,14 +16,10 @@ function getDeepSeekClient() {
     });
 }
 
-// Helper to get SiliconFlow client (For other models)
+// Helper to get SiliconFlow client (or any OpenAI-compatible provider)
 function getSiliconFlowClient() {
-    const apiKey = process.env.SILICONFLOW_API_KEY;
-    const baseURL = 'https://api.siliconflow.cn/v1';
-
-    if (!apiKey) {
-        throw new Error('SILICONFLOW_API_KEY environment variable is not set. Please configure it in your .env file.');
-    }
+    const apiKey = process.env.SILICONFLOW_API_KEY || 'no-key-needed-for-local';
+    const baseURL = process.env.SILICONFLOW_BASE_URL || 'https://api.siliconflow.cn/v1';
 
     return new OpenAI({
         apiKey: apiKey,
@@ -31,14 +27,14 @@ function getSiliconFlowClient() {
     });
 }
 
-// Model Constants
-export const DEEPSEEK_MODEL = 'deepseek-chat'; // V3
-export const DEEPSEEK_REASONER_MODEL = 'deepseek-reasoner'; // R1
+// Model Constants - Allow override via environment variables
+export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL_NAME || 'deepseek-chat';
+export const DEEPSEEK_REASONER_MODEL = process.env.REASONER_MODEL_NAME || 'deepseek-reasoner';
 
-// SiliconFlow Models
-export const QWEN_MODEL = 'Qwen/Qwen2.5-72B-Instruct'; // Example high-end Qwen
-export const GLM_MODEL = 'THUDM/glm-4-9b-chat'; // Example GLM
-export const KIMI_MODEL = 'Qwen/Qwen2.5-72B-Instruct'; // Placeholder if Kimi not direct, use Qwen as weak proxy or actual if available
+// SiliconFlow / Local Provider Models
+export const QWEN_MODEL = process.env.MAIN_MODEL_NAME || 'Qwen/Qwen3-235B-A22B';
+export const GLM_MODEL = 'THUDM/glm-4-9b-chat';
+export const KIMI_MODEL = 'Qwen/Qwen2.5-72B-Instruct';
 
 
 export async function callLLM(
@@ -51,11 +47,16 @@ export async function callLLM(
     let client: OpenAI;
     let actualModel = modelName;
 
-    // Route to appropriate client based on model name
-    if (modelName.startsWith('deepseek')) {
+    // Route to appropriate client based on model name or explicit provider
+    if (modelName.startsWith('deepseek') && !process.env.USE_LOCAL_LLM) {
         client = getDeepSeekClient();
     } else {
+        // In Intranet mode, this serves local models like DeepSeek-R1-32B
         client = getSiliconFlowClient();
+        // If we are in intranet, we might need to force the model name from env
+        if (process.env.USE_LOCAL_LLM && process.env.MAIN_MODEL_NAME) {
+            actualModel = process.env.MAIN_MODEL_NAME;
+        }
     }
 
     try {
@@ -66,30 +67,24 @@ export async function callLLM(
             ],
             model: actualModel,
             response_format: jsonMode ? { type: 'json_object' } : { type: 'text' },
-            temperature: 0.1,
+            temperature: Number(process.env.LLM_TEMPERATURE) || 0.1,
         });
 
         return completion.choices[0].message.content;
     } catch (error: any) {
-        console.error(`[LLM] Call Failed (${modelName}):`, error.message);
-        if (error.status === 401) {
-            console.error('[LLM] Authentication Error - Please check API Key.');
-        }
+        console.error(`[LLM] Call Failed (\${modelName}):`, error.message);
         throw error;
     }
 }
 
 
-// Singleton for formatting/embedding pipeline
-let embedder: any = null;
-
-// New function to call SiliconFlow API
-async function getSiliconFlowEmbedding(text: string): Promise<number[]> {
+// New function to call Embedding API (Can be SiliconFlow or Local Ollama/vLLM)
+async function getExternalEmbedding(text: string): Promise<number[]> {
     const apiKey = process.env.SILICONFLOW_API_KEY;
-    const baseUrl = 'https://api.siliconflow.cn/v1/embeddings';
+    const baseUrl = process.env.EMBEDDING_API_URL || 'https://api.siliconflow.cn/v1/embeddings';
 
-    if (!apiKey) {
-        console.error('[LLM] SILICONFLOW_API_KEY is not set');
+    if (!apiKey && !process.env.USE_LOCAL_EMBEDDING) {
+        console.error('[LLM] No API key provided for Remote Embedding');
         return [];
     }
 
@@ -97,18 +92,18 @@ async function getSiliconFlowEmbedding(text: string): Promise<number[]> {
         const response = await fetch(baseUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
+                'Authorization': `Bearer \${apiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'BAAI/bge-m3', // Recommended model for Chinese text
+                model: process.env.EMBEDDING_MODEL_NAME || 'BAAI/bge-m3',
                 input: text
             })
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`SiliconFlow API Error: ${response.status} - ${errorText}`);
+            throw new Error(`Embedding API Error: \${response.status} - \${errorText}`);
         }
 
         const data = await response.json();
@@ -118,19 +113,19 @@ async function getSiliconFlowEmbedding(text: string): Promise<number[]> {
             throw new Error('No embedding data returned from API');
         }
     } catch (error: any) {
-        console.error('[LLM] SiliconFlow Embedding Failed:', error.message);
+        console.error('[LLM] Embedding Failed:', error.message);
         return [];
     }
 }
 
 export async function getEmbedding(text: string): Promise<number[]> {
-    // Priority: Use SiliconFlow API if Key is present (or hardcoded for now as requested)
-    return await getSiliconFlowEmbedding(text);
-
-    /* 
-    try {
-        // TEMPORARY FIX: Disable local embedding on server to prevent Ort::Exception crash.
-        // ... (Old local logic commented out)
+    // If we want to use local in-process transformers.js (useful for complete offline without extra API)
+    if (process.env.EMBEDDING_SOURCE === 'local-transformers') {
+        // This will be handled in rag.ts for better code separation
+        return [];
     }
-    */
+
+    // Default: Use OpenAI-compatible Embedding API (Cloud or Local server)
+    return await getExternalEmbedding(text);
 }
+

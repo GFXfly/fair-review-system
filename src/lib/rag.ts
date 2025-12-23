@@ -17,8 +17,48 @@ function cosineSimilarity(vecA: number[], vecB: number[]) {
     return dotProduct / magnitude;
 }
 
+// Helper to interact with Vector DB (in our case, SQLite with manual cosine similarity)
+// or calling external embedding APIs
+
+/**
+ * Generates a 1024-dimensional embedding for the given text.
+ * In Intranet mode, this can use a local model via transformers.js.
+ */
 export async function generateEmbedding(text: string): Promise<number[]> {
     if (!text) return [];
+
+    // Check if we should use local in-process embedding (for completely offline environments)
+    if (process.env.EMBEDDING_SOURCE === 'local-transformers') {
+        try {
+            // Lazy load to avoid heavy memory usage if not used
+            const { pipeline, env } = await import('@xenova/transformers');
+            const path = await import('path');
+
+            // CRITICAL: Point to the local models folder in the project root
+            env.localModelPath = path.join(process.cwd(), 'models');
+            env.allowRemoteModels = false; // Force offline mode
+
+            // Use a singleton pattern to avoid re-loading the model
+            if (!(global as any).embeddingPipeline) {
+                console.log('--- [Offline Mode] Loading local BGE-M3 model from ./models... ---');
+                (global as any).embeddingPipeline = await pipeline('feature-extraction', 'Xenova/bge-m3', {
+                    quantized: true, // Use smaller version for better performance
+                });
+            }
+
+            const extractor = (global as any).embeddingPipeline;
+            const output = await extractor(text, { pooling: 'mean', normalize: true });
+
+            // Convert to flat array
+            return Array.from(output.data) as number[];
+        } catch (error: any) {
+            console.error('[RAG] Local Embedding Error:', error.message);
+            // Fallback to empty if local fails
+            return [];
+        }
+    }
+
+    // Default: Use the provider configured in llm.ts (Cloud or Local server API)
     return await getEmbedding(text);
 }
 

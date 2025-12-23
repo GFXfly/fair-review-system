@@ -306,7 +306,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
     ${truncatedText}
     `;
 
-    const resultStr = await callLLM(systemPrompt, userPrompt, true, 'deepseek-chat');
+    const resultStr = await callLLM(systemPrompt, userPrompt, true, 'deepseek-reasoner');
 
     if (!resultStr) {
         return [];

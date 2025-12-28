@@ -314,9 +314,27 @@ function DashboardContent() {
                 body: formData,
             });
 
+            // Check Content-Type to safely parse response
+            const contentType = response.headers.get('content-type') || '';
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.details || errorData.error || 'Analysis failed');
+                // Handle different response types
+                if (contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.details || errorData.error || 'Analysis failed');
+                } else {
+                    // Response is HTML or other format (e.g., 404 page, server error)
+                    const errorText = await response.text();
+                    console.error('API returned non-JSON response:', errorText.substring(0, 200));
+                    throw new Error(`服务器返回错误 (${response.status})。请检查后端服务是否正常运行。`);
+                }
+            }
+
+            // Safely parse successful response
+            if (!contentType.includes('application/json')) {
+                const responseText = await response.text();
+                console.error('Expected JSON but got:', responseText.substring(0, 200));
+                throw new Error('服务器返回了非预期的响应格式');
             }
 
             const data = await response.json();

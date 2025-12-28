@@ -1,0 +1,40 @@
+环境概述
+应用服务器10.33.188.149（Deepseek模型）
+服务器ip:
+ HYPERLINK "http://10.33.188.147/" \t "_blank" 10.33.188.149     arm架构
+用户名/密码：
+root/lasjzx1314!
+服务器操作系统:
+
+算力配置：
+配置：96核 501G 1.7TB
+显卡信息：昇腾300I Pro （310P3） 7*21G
+镜像名称：mindie:1.0.0-300I-Duo-py311-openeuler24.03-lts
+服务器使用端口:
+10304（Deepseek）
+JDK路径：
+/data/soft/jdk/jdk1.8.0_251
+Docker容器路径：
+/data/soft/docker
+Deepseek路径：
+/data/soft/assistant/models/DeepSeek-R1-Distill-Qwen-32B
+模型配置：模型名称：DeepSeek-R1-Distill-Qwen-32B
+模型地址： HYPERLINK "http://10.33.188.149:10304/v1/chat/completions" http://10.33.188.149:10304/v1/chat/completions
+前端访问地址： HYPERLINK "http://10.33.188.149:9090/" http://10.33.188.149:9090/
+Deepseek命令：
+#启动：
+docker start  DeepSeek-qw32b
+
+#进入容器：
+docker exec -it DeepSeek-qw32b bash
+./start.sh
+
+#停止：
+docker stop  DeepSeek-qw32b
+
+		实施部署文档
+
+第PAGE   \* MERGEFORMAT5页，共 NUMPAGES  \* Arabic  \* MERGEFORMAT6页
+
+
+

@@ -72,7 +72,7 @@ export async function callLLM(
 
         return completion.choices[0].message.content;
     } catch (error: any) {
-        console.error(`[LLM] Call Failed (\${modelName}):`, error.message);
+        console.error(`[LLM] Call Failed (${modelName}):`, error.message);
         throw error;
     }
 }
@@ -92,7 +92,7 @@ async function getExternalEmbedding(text: string): Promise<number[]> {
         const response = await fetch(baseUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer \${apiKey}`,
+                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -103,7 +103,7 @@ async function getExternalEmbedding(text: string): Promise<number[]> {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Embedding API Error: \${response.status} - \${errorText}`);
+            throw new Error(`Embedding API Error: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();

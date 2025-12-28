@@ -18,29 +18,126 @@ export interface AuditIssue {
     confidence?: number;
 }
 
+/**
+ * 🔥 新增：风险片段提取函数
+ * 用于在正式审查前，快速识别文档中可能涉及公平竞争问题的关键片段
+ * 这些片段将用于精准检索相似案例
+ */
+async function extractRiskKeywords(text: string): Promise<string[]> {
+    const truncatedText = text.substring(0, 8000); // 使用前8000字进行快速扫描
+
+    const systemPrompt = `
+你是一个公平竞争审查专家。请快速扫描以下政府文件，提取出所有可能涉及公平竞争问题的"风险关键片段"。
+
+**提取规则**：
+1. 每个片段应该是一个完整的政策描述（20-100字）
+2. 直接复制原文中的相关句子，不要改写
+3. 最多提取8个最关键的片段
+
+**重点关注以下四大维度的风险类型**：
+
+【维度一：市场准入和退出】
+- 地域限制："本地企业"、"外地企业不得参与"、"本市注册"、"在本地设立分支机构"
+- 所有制歧视："国有企业优先"、"民营企业"、"国有控股"、"外资企业"
+- 规模/业绩限制："规模以上企业"、"年产值XX万以上"、"纳税额达到"、"营业收入不低于"
+- 资质限制："须具备XX资质"、"近三年业绩"、"中标经验"、"行业排名前XX"
+
+【维度二：商品和要素自由流动】
+- 指定品牌/产地："须使用XX品牌"、"本地产品优先"、"国产优先"、"进口产品"
+- 指定供应商："须从XX单位采购"、"指定服务商"、"唯一供应商"
+- 技术壁垒："须采用XX技术标准"、"持有XX专利"
+
+【维度三：影响生产经营成本】
+- 财政补贴/奖励："给予奖励"、"财政补贴"、"扶持资金"、"产业引导资金"
+- 税收优惠："税收返还"、"税收减免"、"税收优惠"
+- 土地/资源优惠："优惠供地"、"用地指标"、"水电气优惠"
+- 收费/保证金："收取保证金"、"投标保证金"、"履约保证金比例"
+
+【维度四：影响生产经营行为】
+- 限制定标权："不得自行选择中标人"、"须由XX确定"、"摇号确定"、"抓阄"
+- 强制交易："必须购买"、"强制使用"、"统一采购"
+- 限制联合体："联合体成员须满足"、"牵头单位须为本地企业"
+
+**输出格式**：
+返回JSON数组，每个元素是一个风险片段字符串。
+示例：["规模以上制造业企业给予0.3元/度的补贴", "本市注册企业优先", "联合体牵头单位须为本地企业"]
+
+如果文档没有明显的风险片段，返回空数组：[]
+`;
+
+    const userPrompt = `请分析以下文件内容，提取风险关键片段：\n\n${truncatedText}`;
+
+    try {
+        const result = await callLLM(systemPrompt, userPrompt, true, 'deepseek-chat');
+        if (!result) return [];
+
+        const keywords = JSON.parse(result);
+        if (Array.isArray(keywords)) {
+            console.log(`[RAG] 🎯 提取到 ${keywords.length} 个风险关键片段`);
+            keywords.forEach((k, i) => console.log(`  ${i + 1}. ${k.substring(0, 50)}...`));
+            return keywords.slice(0, 8); // 最多8个
+        }
+        return [];
+    } catch (e) {
+        console.error('[RAG] 风险片段提取失败:', e);
+        return [];
+    }
+}
+
 export async function runAuditor(category: string, text: string, guidance: string = ""): Promise<AuditIssue[]> {
     console.log('Running Auditor on category:', category);
 
     // ==========================================
-    // 🔥 优化：改用单次全文摘要检索
+    // 🔥 优化：先提取风险片段，再精准检索
     // ==========================================
 
     // 使用配置文件中的参数
     const { rag } = APP_CONFIG;
 
-    // 使用前5000字作为检索摘要
-    const summaryForRAG = TextChunker.truncate(text, rag.ragInputLength);
+    // 🔥 第一步：提取风险关键片段
+    console.log(`[RAG] 🔍 第一步：提取风险关键片段...`);
+    const riskKeywords = await extractRiskKeywords(text);
 
-    console.log(`[RAG] 使用 ${summaryForRAG.length} 字进行知识库检索`);
+    // 🔥 第二步：针对每个风险片段进行精准检索
+    console.log(`[RAG] 🔍 第二步：针对 ${riskKeywords.length} 个风险片段进行精准检索...`);
 
-    // 单次检索，应用相似度阈值
-    const [allCases, allRegs] = await Promise.all([
-        searchSimilarCases(summaryForRAG, rag.maxCasesPerQuery, rag.caseSimilarityThreshold),
-        searchSimilarRegulations(summaryForRAG, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold)
-    ]);
+    const allCasesMap = new Map<number, typeof allCases[0]>(); // 用于去重
+    let allCases: Awaited<ReturnType<typeof searchSimilarCases>> = [];
+
+    // 对每个风险片段进行检索
+    for (const keyword of riskKeywords) {
+        const cases = await searchSimilarCases(keyword, 5, 0.45); // 进一步降低阈值到45%，增加召回（AI会在prompt中二次筛选）
+        cases.forEach(c => {
+            // 只保留相似度最高的版本
+            const existing = allCasesMap.get(c.id);
+            if (!existing || c.similarity > existing.similarity) {
+                allCasesMap.set(c.id, c);
+            }
+        });
+        console.log(`  - "${keyword.substring(0, 30)}..." → 找到 ${cases.length} 个案例`);
+    }
+
+    // 如果风险片段检索结果不足，用全文摘要兜底
+    if (allCasesMap.size < 3) {
+        console.log(`[RAG] ⚠️ 风险片段检索结果不足，使用全文摘要兜底...`);
+        const summaryForRAG = TextChunker.truncate(text, rag.ragInputLength);
+        const fallbackCases = await searchSimilarCases(summaryForRAG, rag.maxCasesPerQuery, 0.50);
+        fallbackCases.forEach(c => {
+            if (!allCasesMap.has(c.id)) {
+                allCasesMap.set(c.id, c);
+            }
+        });
+    }
+
+    // 转换为数组并按相似度排序
+    allCases = Array.from(allCasesMap.values()).sort((a, b) => b.similarity - a.similarity);
+
+    // 🔥 第三步：检索法规（仍用全文摘要，法规检索不太需要精准）
+    const summaryForRegs = TextChunker.truncate(text, rag.ragInputLength);
+    const allRegs = await searchSimilarRegulations(summaryForRegs, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold);
 
     // 最终取配置数量的案例和法规
-    const uniqueCases = allCases.slice(0, rag.finalCasesCount);
+    const uniqueCases = allCases.slice(0, rag.finalCasesCount + 3); // 多给几个案例，提高命中率
     const uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount);
 
     // ==========================================
@@ -77,8 +174,8 @@ export async function runAuditor(category: string, text: string, guidance: strin
 
         uniqueCases.forEach((c, idx) => {
             const similarityPercent = (c.similarity * 100).toFixed(1);
-            const similarityLabel = c.similarity > 0.75 ? '【高度相似】' :
-                c.similarity > 0.65 ? '【中度相似】' : '【参考】';
+            const similarityLabel = c.similarity >= 0.75 ? '【高度相似】' :
+                c.similarity >= 0.60 ? '【中度相似】' : '【参考价值低】';
 
             ragContext += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
             ragContext += `案例${idx + 1} ${similarityLabel}（相似度：${similarityPercent}%）\n`;
@@ -102,7 +199,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
         });
     } else {
         // 如果没有检索到案例，提示AI
-        ragContext += "\n⚠️ 未检索到高相关性历史案例（相似度<65%），请仅依据法规进行独立判断。\n\n";
+        ragContext += "\n⚠️ 未检索到相关历史案例（相似度<45%），请仅依据法规进行独立判断。\n\n";
     }
 
     if (uniqueRegs.length > 0) {
@@ -140,17 +237,59 @@ export async function runAuditor(category: string, text: string, guidance: strin
     `}
 
     审查重点（特别针对工程建设和招投标）：
-    1. **市场准入和退出**: 
+    1. **市场准入和退出**:
        - 是否要求在本地区设立分支机构、缴纳税收社保？
        - 是否将特定行政区域的业绩、奖项作为加分或中标条件？
        - 是否设置过高的注册资本、净资产、营收等规模门槛？
-    2. **商品和要素自由流动**: 
+    2. **商品和要素自由流动**:
        - 是否限定特定的品牌、专利、供应商或产地？
        - 是否要求"优先采购本国/本地产品"而无法规依据？
        - 是否对联合体成员的注册地、所有制设置差异性得分？
        - 是否要求必须提供原件而非电子证照？
     3. **影响生产经营成本**: 是否强制要求提供特定机构的保函？是否违法收取保证金？
     4. **定标和定标权**: 是否限制招标人的定标自主权？是否采用摇号、抓阄等方式确定中标人？
+
+    // ==========================================
+    // 🔥 独立输出规则【极其重要】
+    // ==========================================
+
+    【强制规则】一个风险点对应一个政策条款：
+
+    ❌ 禁止合并：如果文件中有"政策1、政策2、政策3"三个独立的违规条款，必须输出3个独立的risk对象，不得合并。
+
+    ✅ 正确做法：
+    - 每个risk的location字段只能包含一个政策条款的完整原文（30-200字）
+    - 即使违规类型相同（如都是"规模限制"），也必须独立输出
+    - 每个risk都要有独立的description、suggestion、reference
+
+    【错误示例】❌ 合并多个政策：
+    {
+      "location": "政策1细则：规模以上制造业企业供电...；政策2细则：规模以上工业企业2026年...；政策5细则：1-2月规模同比增长..."
+    }
+
+    【正确示例】✅ 独立输出：
+    [
+      {
+        "id": "risk_1",
+        "location": "政策1细则：规模以上制造业企业供电电压等级10千伏及以上且春节假期期间"不停产"...给予用电补贴",
+        "description": "【规模/业绩限制 + 财政补贴】该条款将用电补贴限定在'规模以上制造业企业'，排除了规模以下企业..."
+      },
+      {
+        "id": "risk_2",
+        "location": "政策2细则：规模以上工业企业2026年一季度产值较2025年一季度产值每增加1000万元奖励2万元",
+        "description": "【规模/业绩限制 + 财政补贴】该条款将产值增长奖励限定在'规模以上工业企业'，排除了规模以下企业..."
+      },
+      {
+        "id": "risk_3",
+        "location": "政策5细则：1-2月规模同比增长的营利性服务业企业，每新增1000万元奖励2万元",
+        "description": "【规模/业绩限制 + 财政补贴】该条款将奖励限定在'规模同比增长的营利性服务业企业'，排除了其他企业..."
+      }
+    ]
+
+    独立输出的好处：
+    1. 用户可以逐条定位原文，快速查找
+    2. 每个政策都有独立的修改建议，便于整改
+    3. 可以分别标记整改进度（政策1已改，政策2待改）
 
     参考知识库信息：
     ${guidance}
@@ -215,15 +354,29 @@ export async function runAuditor(category: string, text: string, guidance: strin
     // ==========================================
 
     **案例引用规则（严格执行）**：
-    
+
     1. **只能引用真实案例**：reference字段只能从上方【可引用的相似案例/权威认定】中选取内容引用。
     2. **禁止虚构案例**：绝对禁止编造不存在的案例名称或案例内容！
-    3. **相似度要求**：只有相似度>70%且违规本质相同的案例才可引用。
-    4. **引用格式**：直接复制上方案例的【案例原文】部分，保持原文不变。
-    5. **无案例时留空**：如果上方没有提供相似案例，或相似度不够，reference字段必须为空字符串("")。
-    
+    3. **相似度要求**：只有相似度≥55%且违规本质相同的案例才可引用。
+    4. **精准匹配要求【新增】**：
+       - ⚠️ 必须检查"违规手段"和"限制对象"是否都一致
+       - ✅ 正确：当前文件"对规上企业给予奖励" ←→ 案例"将奖励限制在规上企业" （限制对象一致）
+       - ❌ 错误：当前文件"对规上企业给予奖励" ←→ 案例"首次达到规上企业奖励" （限制对象不同：存量 vs 增量）
+       - ✅ 正确：当前文件"本地企业优先" ←→ 案例"限定本地企业参与" （限制对象一致）
+       - ❌ 错误：当前文件"规模以上企业" ←→ 案例"年产值1000万以上企业" （虽然都是规模限制，但标准不同）
+    5. **引用格式**：直接复制上方案例的【案例原文】部分，保持原文不变。
+    6. **无案例时留空**：如果上方没有提供相似案例，或相似度不够，或违规本质不同，reference字段必须为空字符串("")。
+
     reference格式模板（仅当有真实案例时使用）：
     "【案例标题（来自上方检索结果）】\\n违规类型：XX。\\n相似度：XX%。\\n违规要点：XX。\\n【案例原文】：\\n(直接复制上方案例的原文内容)"
+
+    **案例筛选指南**：
+    在引用案例前，请自问：
+    1. 当前风险点的核心违规对象是谁？（规上企业/本地企业/国有企业/特定品牌...）
+    2. 案例中的违规对象是否完全一致？（不能是"相近"，必须是"相同"）
+    3. 违规手段是否一致？（限定/禁止/优先/指定...）
+    4. 如果案例中有"首次达到"、"新增"、"增量"等词，而当前文件没有，则不匹配
+    5. 如果案例中是"年产值XX万"，而当前文件是"规上企业"，虽然都涉及规模，但标准不同，不匹配
 
 
     // ==========================================
@@ -270,11 +423,15 @@ export async function runAuditor(category: string, text: string, guidance: strin
     6️⃣ **财政优惠/补贴**
     7️⃣ **不合理的准入/退出条件**
     
-    **案例匹配原则（宁缺毋滥）**：
-    1. **高度匹配才引用**：只有当案例的违规手段、限制对象与当前文档**高度相似**（相似度感官上>70%）时才引用。
+    **案例匹配原则（精准优先）**：
+    1. **精准匹配才引用**：案例的"违规手段"+"限制对象"必须与当前文档**完全一致**才能引用。
+       - 相似度≥55%是前提条件
+       - 但相似度高不代表可以引用，还要检查违规本质是否相同
     2. **拒绝强行关联**：禁止引用虽然关键词相同但违规逻辑完全不同的案例。
-    3. **法理优先**：如果没有极高相关的案例，请通过 description 字段展现深刻的法理分析。
-    4. **空值标准**：若无匹配案例或没信心，reference 字段必须留空（即空字符串），不需要给出任何解释说明。
+       - 案例："首次达到规上企业奖励" ≠ 当前："规上企业奖励"（前者是增量激励，后者是存量歧视）
+       - 案例："年产值1000万以上" ≠ 当前："规上企业"（虽然都是规模限制，但标准不同）
+    3. **法理优先**：如果没有精准匹配的案例，请通过 description 字段展现深刻的法理分析。
+    4. **空值标准**：若无匹配案例或没把握，reference 字段必须留空（即空字符串），不需要给出任何解释说明。
 
     reference格式模板：
     "【案例标题】\n违规类型：XX。\n相似度：XX%。\n违规要点：XX。\n处理结果：XX。\n【案例原文】：\n(从上下文摘录的关键段落原文)"

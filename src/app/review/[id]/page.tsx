@@ -411,7 +411,17 @@ export default function ReviewPage() {
                     setRealReviewId(id);
 
                     let newDocContent: any[] = [];
-                    if (data.text) {
+
+                    // Prefer HTML rendering if available (preserves table structure and enables highlighting)
+                    if (data.html) {
+                        newDocContent = [{
+                            id: 'doc_html',
+                            type: 'html',
+                            html: data.html
+                        }];
+                        setDocContent(newDocContent);
+                    } else if (data.text) {
+                        // Fallback to text parsing
                         newDocContent = parseDocContent(data.text);
                         if (newDocContent.length > 0) {
                             setDocContent(newDocContent);
@@ -1158,7 +1168,6 @@ export default function ReviewPage() {
                                                 onClick={() => handleRiskClick(risk.id)}
                                             >
                                                 <div className={styles.cardHeader}>
-                                                    <span className={styles.riskType}>{risk.type}</span>
                                                     <span className={styles.riskLevel}>
                                                         {risk.level === 'high' ? '🔴 高风险' : '🟡 疑似风险'}
                                                     </span>

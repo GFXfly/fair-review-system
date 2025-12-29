@@ -137,8 +137,9 @@ export async function runAuditor(category: string, text: string, guidance: strin
     const allRegs = await searchSimilarRegulations(summaryForRegs, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold);
 
     // 最终取配置数量的案例和法规
-    const uniqueCases = allCases.slice(0, rag.finalCasesCount + 3); // 多给几个案例，提高命中率
-    const uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount);
+    // 优化：减少案例数量，避免context过大导致超时
+    const uniqueCases = allCases.slice(0, rag.finalCasesCount); // 5个案例
+    const uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount); // 3个法规
 
     // ==========================================
     // 🔥 检索质量日志
@@ -181,9 +182,9 @@ export async function runAuditor(category: string, text: string, guidance: strin
             ragContext += `案例${idx + 1} ${similarityLabel}（相似度：${similarityPercent}%）\n`;
             ragContext += `标题：【${c.violationType}】${c.title}\n`;
 
-            // 展示更完整的案例原文（4000字）
+            // 展示案例原文（优化：2000字，避免context过大）
             const fullContent = c.content || '';
-            ragContext += `【案例原文】：\n${fullContent.substring(0, 4000)}${fullContent.length > 4000 ? '...(省略)' : ''}\n`;
+            ragContext += `【案例原文】：\n${fullContent.substring(0, 2000)}${fullContent.length > 2000 ? '...(省略)' : ''}\n`;
 
             // 违规要点
             if (c.violationDetail) {
@@ -207,7 +208,8 @@ export async function runAuditor(category: string, text: string, guidance: strin
         uniqueRegs.forEach((r, idx) => {
             const similarityPercent = (r.similarity * 100).toFixed(1);
             ragContext += `法规${idx + 1}（相似度：${similarityPercent}%）：《${r.title}》\n`;
-            ragContext += `   内容：${r.content ? r.content.substring(0, 1000) : '暂无'}...\n\n`;
+            // 优化：减少法规内容长度，从1000字减少到600字
+            ragContext += `   内容：${r.content ? r.content.substring(0, 600) : '暂无'}...\n\n`;
         });
     }
 

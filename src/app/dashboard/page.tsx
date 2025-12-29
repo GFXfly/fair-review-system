@@ -303,70 +303,113 @@ function DashboardContent() {
             const formData = new FormData();
             formData.append('file', selectedFile);
 
-            // Simulate multi-agent workflow progress
-            setTimeout(() => setAnalyzingStatus("Gatekeeper 正在进行文档语义解析..."), 1000);
-            setTimeout(() => setAnalyzingStatus("正在全库检索 19 部法规、500+ 起典型违规案例向量..."), 2500);
-            setTimeout(() => setAnalyzingStatus("Auditor 与 RiskRadar 正在进行对抗性辩论验证..."), 4500);
-            setTimeout(() => setAnalyzingStatus("正在融合多方意见生成最终审查报告..."), 6500);
-
+            // Step 1: Submit file and get task ID
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 body: formData,
             });
 
-            // Check Content-Type to safely parse response
             const contentType = response.headers.get('content-type') || '';
 
             if (!response.ok) {
-                // Handle different response types
                 if (contentType.includes('application/json')) {
                     const errorData = await response.json();
                     throw new Error(errorData.details || errorData.error || 'Analysis failed');
                 } else {
-                    // Response is HTML or other format (e.g., 404 page, server error)
                     const errorText = await response.text();
                     console.error('API returned non-JSON response:', errorText.substring(0, 200));
                     throw new Error(`服务器返回错误 (${response.status})。请检查后端服务是否正常运行。`);
                 }
             }
 
-            // Safely parse successful response
-            if (!contentType.includes('application/json')) {
-                const responseText = await response.text();
-                console.error('Expected JSON but got:', responseText.substring(0, 200));
-                throw new Error('服务器返回了非预期的响应格式');
+            const data = await response.json();
+            const recordId = data.id;
+
+            if (!recordId) {
+                throw new Error('服务器未返回审查记录ID');
             }
 
-            const data = await response.json();
+            console.log(`[Review] Started async review with ID: ${recordId}`);
 
-            // Store result
-            sessionStorage.setItem('temp_review_data', JSON.stringify({
-                fileName: selectedFile.name,
-                fileSize: selectedFile.size,
-                ...data
-            }));
+            // Step 2: Poll for status until complete
+            const pollInterval = 2000; // 2 seconds
+            const maxPolls = 300; // Max 10 minutes (300 * 2s)
+            let polls = 0;
 
-            setAnalyzingStatus("审查完成，正在生成报告...");
-            setTimeout(() => router.push('/review/temp'), 500);
+            const pollStatus = async (): Promise<void> => {
+                polls++;
+
+                try {
+                    const statusResponse = await fetch(`/api/reviews/${recordId}/status`);
+
+                    if (!statusResponse.ok) {
+                        throw new Error('获取审查状态失败');
+                    }
+
+                    const statusData = await statusResponse.json();
+
+                    // Update UI with current progress
+                    if (statusData.progressMessage) {
+                        setAnalyzingStatus(`${statusData.progressMessage} (${statusData.progress}%)`);
+                    }
+
+                    // Check status
+                    if (statusData.status === 'completed') {
+                        // Fetch full review data
+                        const fullReviewResponse = await fetch(`/api/reviews/${recordId}`);
+                        const fullReviewData = await fullReviewResponse.json();
+
+                        // Store result and navigate
+                        sessionStorage.setItem('temp_review_data', JSON.stringify({
+                            fileName: selectedFile.name,
+                            fileSize: selectedFile.size,
+                            id: recordId,
+                            ...fullReviewData
+                        }));
+
+                        setAnalyzingStatus("审查完成，正在生成报告...");
+                        setTimeout(() => router.push(`/review/${recordId}`), 500);
+                        return;
+
+                    } else if (statusData.status === 'ignored') {
+                        // Document doesn't need review
+                        setAnalyzingStatus("该文件无需审查");
+                        alert(`【无需审查】\n\n该文件不属于公平竞争审查范围：\n${statusData.progressMessage || '已自动跳过'}`);
+                        setIsAnalyzing(false);
+                        window.location.reload(); // Refresh to show updated list
+                        return;
+
+                    } else if (statusData.status === 'failed') {
+                        throw new Error(statusData.progressMessage || '审查失败');
+
+                    } else if (polls >= maxPolls) {
+                        throw new Error('审查超时，请刷新页面查看审查记录');
+
+                    } else {
+                        // Still processing, poll again
+                        setTimeout(pollStatus, pollInterval);
+                    }
+
+                } catch (pollError: any) {
+                    console.error('[Poll] Error:', pollError);
+                    throw pollError;
+                }
+            };
+
+            // Start polling
+            await pollStatus();
 
         } catch (error: any) {
             console.error('Error starting review:', error);
 
-            // Build detailed error message
             let errorMessage = '审查启动失败';
 
             if (error.message) {
                 errorMessage += `\n\n错误详情：${error.message}`;
             }
 
-            // Show suggestion if available
             if (error.suggestion) {
                 errorMessage += `\n\n建议：${error.suggestion}`;
-            }
-
-            // In development, show technical details
-            if (process.env.NODE_ENV === 'development' && error.technicalDetails) {
-                errorMessage += `\n\n技术细节：${error.technicalDetails}`;
             }
 
             alert(errorMessage);

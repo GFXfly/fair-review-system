@@ -53,7 +53,7 @@ export const APP_CONFIG = {
     // ==========================================
     llm: {
         temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.1'),
-        timeout: parseInt(process.env.LLM_TIMEOUT || '60000'),
+        timeout: parseInt(process.env.LLM_TIMEOUT || '180000'), // 3分钟，DeepSeek Reasoner需要更长时间
     },
 
     // ==========================================

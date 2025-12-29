@@ -56,3 +56,8 @@ dev.db
 *API_KEY*
 credentials.json
 secrets.json
+
+# Large artifacts
+models/
+*.zip
+dist_intranet/

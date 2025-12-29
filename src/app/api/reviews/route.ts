@@ -36,13 +36,16 @@ export async function GET(req: NextRequest) {
         const isExport = searchParams.get('export') === 'true';
 
         const reviews = await prisma.reviewRecord.findMany({
-            take: isExport ? undefined : 50, // No limit for export, otherwise 50
+            take: isExport ? undefined : 20, // 优化：减少到20条（列表页面不需要50条）
             where: whereClause,
             orderBy: {
                 createdAt: 'desc'
             },
             include: {
-                risks: true,
+                // 优化：只查询risk数量，不加载详细数据
+                _count: {
+                    select: { risks: true }
+                },
                 user: {
                     select: {
                         name: true,
@@ -52,9 +55,16 @@ export async function GET(req: NextRequest) {
             }
         });
 
-        console.log(`[API_REVIEWS] Returning ${reviews.length} reviews. Where: ${JSON.stringify(whereClause)}`);
+        // 将_count转换为riskCount字段，保持向后兼容
+        const reviewsWithCount = reviews.map(review => ({
+            ...review,
+            riskCount: review._count.risks,
+            _count: undefined // 移除_count字段
+        }));
 
-        return NextResponse.json(reviews);
+        console.log(`[API_REVIEWS] Returning ${reviewsWithCount.length} reviews. Where: ${JSON.stringify(whereClause)}`);
+
+        return NextResponse.json(reviewsWithCount);
     } catch (error) {
         console.error('Failed to fetch review records:', error);
         return NextResponse.json({ error: 'Failed to fetch review records' }, { status: 500 });

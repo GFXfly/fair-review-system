@@ -73,7 +73,9 @@ model ReviewRecord {
   id        String       @id @default(cuid()) // 使用 CUID 作为 ID，方便 URL 路由
   fileName  String
   fileSize  Int?
-  status    String       @default("pending") // pending, completed, failed
+  status    String       @default("pending") // pending, processing, completed, failed, ignored
+  progress  Int          @default(0)         // 0-100 进度百分比
+  progressMessage String? // 当前进度消息
   riskCount Int          @default(0)
   summary   String?      // 全文摘要
   originalText String?    // 原始文本全文

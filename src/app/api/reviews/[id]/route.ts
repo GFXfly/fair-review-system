@@ -96,8 +96,8 @@ export async function GET(
         const responseData = {
             id: review.id,
             fileName: review.fileName,
-            text: (review as any).text || "",  // Return stored text
-            html: (review as any).html || "",  // Return stored HTML for table rendering
+            text: review.originalText || "",  // Return stored original text
+            html: review.originalHtml || "",  // Return stored original HTML for table rendering
             gatekeeper: {
                 category: (review.summary && review.summary.includes('文件类型：')) ? review.summary.split('。')[0].replace('文件类型：', '') : '未知',
                 reason: review.summary || '无摘要',

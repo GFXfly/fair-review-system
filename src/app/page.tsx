@@ -42,7 +42,7 @@ export default function LoginPage() {
             {/* Left Side: The Sentinel */}
             <div className={styles.leftPanel}>
                 <div className={styles.branding}>
-                    <h1>临安区公平竞争审查辅助平台</h1>
+                    <h1>招投标领域公平竞争审查辅助平台</h1>
                     <p>FAIR COMPETITION REVIEW ASSISTANCE PLATFORM</p>
                 </div>
 
@@ -62,10 +62,14 @@ export default function LoginPage() {
                 </div>
 
                 <div className={styles.footer}>
-                    <div style={{ marginBottom: '8px' }}>数据来源：杭州市公共资源交易平台、招必得、浙江政府采购网 | 更新于：刚刚</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                    <div style={{ marginBottom: '8px' }}>数据来源：杭州市公共资源交易平台、招必得、浙江政府采购网</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '15px', flexWrap: 'wrap' }}>
                         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
                             浙ICP备2025160577号-5
+                        </a>
+                        <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33018502002536" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <img src="/beian.png" alt="备案图标" style={{ width: '16px', height: '16px' }} />
+                            浙公网安备33018502002536号
                         </a>
                     </div>
                 </div>

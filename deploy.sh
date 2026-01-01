@@ -66,17 +66,28 @@ ssh $SERVER_USER@$SERVER_IP << 'EOF'
 
     # Ensure Admin Role
     echo "👑 Configure Admin..."
-    docker exec fair-review-system node scripts/ensure_admin.js
+    # Update permission for scripts
+    chmod +x scripts/*.ts
+    
+    # Run database migration (if needed)
+    docker compose up -d
 
-    # Setup Nginx
-    echo "🌍 Configuring Nginx..."
-    yes | cp shencha_nginx.conf /etc/nginx/conf.d/shencha.conf
-    nginx -t && systemctl reload nginx
-
-    # Clean up unused images
-    docker image prune -f
-
-    echo "✅ Deployment complete! App is running on port 3005 and domain shencha.site should be active."
+    # Wait for container to be ready
+    # Run the user creation script inside the container (Optional: Commented out to save time on updates)
+    # echo "Using Docker container to run batch user creation..."
+    # docker exec fair-review-system sh -c "
+    #   npm install pinyin-pro xlsx && \
+    #   node scripts/batch_create_users.js
+    # "
+    
+    # Copy the Excel file from container to host (Optional)
+    # docker cp fair-review-system:/app/user_accounts_server.xlsx ./user_accounts_server.xlsx
 EOF
 
+# 5. Download the Excel file to local
+echo "⬇️ Downloading generated user accounts..."
+scp $SERVER_USER@$SERVER_IP:~/fair-review-system/user_accounts_server.xlsx ./user_accounts_server.xlsx
+
+echo "✅ Deployment complete! App is running on port 3005 and domain shencha.site should be active."
+echo "✅ User accounts Excel downloaded to ./user_accounts_server.xlsx"
 echo "🎉 All Done! Visit http://$SERVER_IP:3005 if you haven't configured Nginx yet."

@@ -2,6 +2,7 @@ import { callLLM } from '@/lib/llm';
 import { searchSimilarCases, searchSimilarRegulations } from '@/lib/rag';
 import { TextChunker } from '@/lib/text-utils';
 import { APP_CONFIG } from '@/lib/config';
+import { RetrievalAgent } from './retrieval';
 
 export interface AuditIssue {
     id: string;
@@ -88,58 +89,101 @@ export async function runAuditor(category: string, text: string, guidance: strin
     console.log('Running Auditor on category:', category);
 
     // ==========================================
-    // 🔥 优化：先提取风险片段，再精准检索
+    // 🔥 Agentic RAG：智能检索代理
     // ==========================================
 
     // 使用配置文件中的参数
     const { rag } = APP_CONFIG;
 
+    // 🔥 初始化智能检索代理
+    // 可以通过环境变量控制是否启用 Agentic RAG
+    const useAgenticRAG = process.env.ENABLE_AGENTIC_RAG !== 'false'; // 默认启用
+
+    console.log(`[RAG] 检索模式：${useAgenticRAG ? 'Agentic RAG（智能）' : 'Traditional RAG（传统）'}`);
+
     // 🔥 第一步：提取风险关键片段
     console.log(`[RAG] 🔍 第一步：提取风险关键片段...`);
     const riskKeywords = await extractRiskKeywords(text);
 
-    // 🔥 第二步：针对每个风险片段进行精准检索
-    console.log(`[RAG] 🔍 第二步：针对 ${riskKeywords.length} 个风险片段进行精准检索...`);
+    let uniqueCases: any[] = [];
+    let uniqueRegs: any[] = [];
 
-    const allCasesMap = new Map<number, typeof allCases[0]>(); // 用于去重
-    let allCases: Awaited<ReturnType<typeof searchSimilarCases>> = [];
+    if (useAgenticRAG && riskKeywords.length > 0) {
+        // ==========================================
+        // 🔥 新方案：Agentic RAG（智能检索代理）
+        // ==========================================
 
-    // 对每个风险片段进行检索
-    for (const keyword of riskKeywords) {
-        const cases = await searchSimilarCases(keyword, 5, 0.45); // 进一步降低阈值到45%，增加召回（AI会在prompt中二次筛选）
-        cases.forEach(c => {
-            // 只保留相似度最高的版本
-            const existing = allCasesMap.get(c.id);
-            if (!existing || c.similarity > existing.similarity) {
-                allCasesMap.set(c.id, c);
-            }
+        const retrievalAgent = new RetrievalAgent({
+            // 可以根据需要自定义配置
+            enableQueryRewriting: true,      // 启用查询重写
+            maxRewrites: 2,                  // 每个查询生成2个改写
+
+            enableIterativeSearch: true,     // 启用迭代检索
+            initialThreshold: 0.65,          // 初始阈值：65%
+            minThreshold: 0.35,              // 最低阈值：35%
+            thresholdStep: 0.15,             // 每轮降低15%
+            maxIterations: 3,                // 最多迭代3轮
+
+            minCases: 3,                     // 最少找到3个案例
+            maxCases: 10,                    // 最多返回10个案例
+            highQualityThreshold: 0.60,      // 高质量案例阈值：60%
+            minHighQualityCases: 2,          // 最少2个高质量案例
         });
-        console.log(`  - "${keyword.substring(0, 30)}..." → 找到 ${cases.length} 个案例`);
+
+        // 🔥 批量检索案例（自动包含查询重写、迭代检索、融合去重）
+        const allCases = await retrievalAgent.batchRetrievalForRisks(riskKeywords, 'case');
+        uniqueCases = allCases.slice(0, rag.finalCasesCount);
+
+        // 🔥 检索法规（法规用全文摘要，不需要太精准）
+        const summaryForRegs = TextChunker.truncate(text, rag.ragInputLength);
+        const regQueries = await retrievalAgent.rewriteQuery(summaryForRegs);
+        const allRegs = await retrievalAgent.fusionSearch(regQueries, 'regulation');
+        uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount);
+
+    } else {
+        // ==========================================
+        // 🔥 旧方案：Traditional RAG（保留作为后备）
+        // ==========================================
+
+        console.log(`[RAG] 使用传统检索模式（风险片段数：${riskKeywords.length}）`);
+
+        const allCasesMap = new Map<number, typeof allCases[0]>();
+        let allCases: Awaited<ReturnType<typeof searchSimilarCases>> = [];
+
+        // 对每个风险片段进行检索
+        for (const keyword of riskKeywords) {
+            const cases = await searchSimilarCases(keyword, 5, 0.45);
+            cases.forEach(c => {
+                const existing = allCasesMap.get(c.id);
+                if (!existing || c.similarity > existing.similarity) {
+                    allCasesMap.set(c.id, c);
+                }
+            });
+            console.log(`  - "${keyword.substring(0, 30)}..." → 找到 ${cases.length} 个案例`);
+        }
+
+        // 如果风险片段检索结果不足，用全文摘要兜底
+        if (allCasesMap.size < 3) {
+            console.log(`[RAG] ⚠️ 风险片段检索结果不足，使用全文摘要兜底...`);
+            const summaryForRAG = TextChunker.truncate(text, rag.ragInputLength);
+            const fallbackCases = await searchSimilarCases(summaryForRAG, rag.maxCasesPerQuery, 0.50);
+            fallbackCases.forEach(c => {
+                if (!allCasesMap.has(c.id)) {
+                    allCasesMap.set(c.id, c);
+                }
+            });
+        }
+
+        // 转换为数组并按相似度排序
+        allCases = Array.from(allCasesMap.values()).sort((a, b) => b.similarity - a.similarity);
+
+        // 检索法规
+        const summaryForRegs = TextChunker.truncate(text, rag.ragInputLength);
+        const allRegs = await searchSimilarRegulations(summaryForRegs, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold);
+
+        uniqueCases = allCases.slice(0, rag.finalCasesCount);
+        uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount);
     }
-
-    // 如果风险片段检索结果不足，用全文摘要兜底
-    if (allCasesMap.size < 3) {
-        console.log(`[RAG] ⚠️ 风险片段检索结果不足，使用全文摘要兜底...`);
-        const summaryForRAG = TextChunker.truncate(text, rag.ragInputLength);
-        const fallbackCases = await searchSimilarCases(summaryForRAG, rag.maxCasesPerQuery, 0.50);
-        fallbackCases.forEach(c => {
-            if (!allCasesMap.has(c.id)) {
-                allCasesMap.set(c.id, c);
-            }
-        });
-    }
-
-    // 转换为数组并按相似度排序
-    allCases = Array.from(allCasesMap.values()).sort((a, b) => b.similarity - a.similarity);
-
-    // 🔥 第三步：检索法规（仍用全文摘要，法规检索不太需要精准）
-    const summaryForRegs = TextChunker.truncate(text, rag.ragInputLength);
-    const allRegs = await searchSimilarRegulations(summaryForRegs, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold);
-
-    // 最终取配置数量的案例和法规
-    // 优化：减少案例数量，避免context过大导致超时
-    const uniqueCases = allCases.slice(0, rag.finalCasesCount); // 5个案例
-    const uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount); // 3个法规
 
     // ==========================================
     // 🔥 检索质量日志

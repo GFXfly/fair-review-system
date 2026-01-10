@@ -32,7 +32,7 @@ export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL_NAME || 'deepseek-chat'
 export const DEEPSEEK_REASONER_MODEL = process.env.REASONER_MODEL_NAME || 'deepseek-reasoner';
 
 // SiliconFlow / Local Provider Models
-export const QWEN_MODEL = process.env.MAIN_MODEL_NAME || 'Qwen/Qwen3-235B-A22B';
+export const QWEN_MODEL = process.env.MAIN_MODEL_NAME || 'Qwen/Qwen3-235B-A22B-Instruct-2507';
 export const GLM_MODEL = 'THUDM/glm-4-9b-chat';
 export const KIMI_MODEL = 'Qwen/Qwen2.5-72B-Instruct';
 

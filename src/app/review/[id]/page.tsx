@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import RiskFeedback from '@/components/RiskFeedback';
 import { formatParagraphText, getCategoryLabel, parseDocContent, type DocParagraph } from './doc-utils';
+import { findMatchingParagraphIds, highlightTextInNode, clearHighlights } from './highlight-utils';
 
 // --- Mock Data ---
 
@@ -94,65 +95,7 @@ export default function ReviewPage() {
         };
     }, []);
 
-    // Helper to find matching paragraphs with fuzzy matching (returns array of IDs)
-    const findMatchingParagraphIds = (paragraphs: any[], snippet: string): string[] => {
-        if (!snippet || !paragraphs || paragraphs.length === 0) return [];
-
-        // 1. Aggressive Normalization
-        const normalize = (str: string) => str.replace(/[\s\u3000,.，。、；;：:!！?？"“”‘’'()[\]【】\-_]/g, '').toLowerCase();
-
-        // 2. Split snippet into significant chunks
-        let parts = [snippet];
-        if (snippet.includes('...') || snippet.includes('…') || snippet.includes('\n')) {
-            parts = snippet.split(/[….\n]+/).filter(s => {
-                const normalized = normalize(s);
-                return normalized.length > 3; // Chunk must have some substance (raw length might be spaces, check normalized length?)
-                // Better: check normalized length > 3 to avoid matching "1." or "of"
-            });
-        }
-
-        // Filter out empty parts after verification
-        const significantParts = parts.filter(p => normalize(p).length > 3);
-
-        // If no significant parts, try matching the whole thing if it's short but distinct?
-        // Or just fallback to the whole normal string matched
-        if (significantParts.length === 0) {
-            const normSnippet = normalize(snippet);
-            if (normSnippet.length > 2) {
-                significantParts.push(snippet);
-            } else {
-                return [];
-            }
-        }
-
-        const matchedIds = new Set<string>();
-
-        // 3. Check each paragraph for ANY of the significant parts
-        // This supports cases where a quote spans multiple paragraphs (e.g. Header + Body)
-        for (const para of paragraphs) {
-            // "smart_table" paragraphs store content in rows arrays, not 'text' field directly
-            let paraText = para.text || '';
-            if (para.type === 'smart_table' && para.rows) {
-                // Flatten table content for matching
-                paraText = para.rows.map((r: string[]) => r.join('')).join('');
-            }
-
-            const normPara = normalize(paraText);
-
-            for (const part of significantParts) {
-                const normPart = normalize(part);
-                if (normPara.includes(normPart)) {
-                    matchedIds.add(para.id);
-                    // Don't break; a paragraph might contain multiple parts, but we just need to add it once.
-                    // Also we want to find OTHER paragraphs that match OTHER parts.
-                }
-            }
-        }
-
-        return Array.from(matchedIds);
-    };
-
-    // Load data from sessionStorage if id is 'temp'
+    // Load data from sessionStorage if id is ‘temp’
     useEffect(() => {
         if (id === 'temp') {
             const dataStr = sessionStorage.getItem('temp_review_data');
@@ -322,18 +265,7 @@ export default function ReviewPage() {
             const risk = risks.find(r => r.id === activeRiskId);
 
             // Clear previous highlights
-            // Clear previous highlights safely
-            document.querySelectorAll('mark.risk-highlight').forEach(mark => {
-                const parent = mark.parentNode;
-                if (parent) {
-                    // Move all children out of the mark tag before removing it
-                    while (mark.firstChild) {
-                        parent.insertBefore(mark.firstChild, mark);
-                    }
-                    parent.removeChild(mark);
-                    parent.normalize();
-                }
-            });
+            clearHighlights();
 
             if (risk) {
                 console.log('[Risk Click] Risk object:', {
@@ -419,127 +351,6 @@ export default function ReviewPage() {
             }
         }
     }, [activeRiskId, risks]);
-
-
-    // Enhanced multi-strategy text highlighting function
-    const highlightTextInNode = (container: HTMLElement, searchText: string): boolean => {
-        if (!searchText || searchText.length < 5) return false;
-
-        console.log('[Highlight] === Starting search in container ===');
-
-        // Helper: normalize text
-        const normalize = (text: string) => {
-            return text
-                .replace(/[\s\u3000]/g, '')
-                .replace(/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>«»]/g, '')
-                .toLowerCase();
-        };
-
-        const fullText = container.textContent || '';
-        const normalizedFull = normalize(fullText);
-        const normalizedSearch = normalize(searchText);
-
-        // Strategy 2: Exact normalized match
-        if (normalizedFull.indexOf(normalizedSearch) !== -1) {
-            console.log('[Highlight] ✓ Strategy 2: Exact normalized match');
-            highlightByNormalizedMatch(container, searchText, normalizedSearch);
-            return true;
-        }
-
-        // Strategy 3: Sliding window segments
-        // Be more permissive with punctuation and length
-        const segments = searchText.split(/[,，.。、；;：:!！?？\n\r|｜]/).map(s => s.trim()).filter(s => s.length >= 6);
-        console.log(`[Highlight] Strategy 3: Trying ${segments.length} segments`);
-
-        for (const segment of segments) {
-            const normalizedSegment = normalize(segment);
-            if (normalizedSegment.length >= 6 && normalizedFull.indexOf(normalizedSegment) !== -1) {
-                console.log('[Highlight] ✓ Strategy 3: Found segment match:', segment.substring(0, 20));
-                highlightByNormalizedMatch(container, segment, normalizedSegment);
-                return true;
-            }
-        }
-
-        // Strategy 4: Prefix matching with backoff
-        for (let len = Math.min(searchText.length, 120); len >= 15; len -= 5) {
-            const prefix = searchText.substring(0, len);
-            const normalizedPrefix = normalize(prefix);
-            if (normalizedPrefix.length >= 10 && normalizedFull.indexOf(normalizedPrefix) !== -1) {
-                console.log('[Highlight] ✓ Strategy 4: Found prefix match of length:', len);
-                highlightByNormalizedMatch(container, prefix, normalizedPrefix);
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    // Helper function to highlight by normalized matching (Robust version)
-    const highlightByNormalizedMatch = (container: HTMLElement, originalText: string, normalizedSearch: string) => {
-        const textNodes: Text[] = [];
-        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-        while (walker.nextNode()) {
-            textNodes.push(walker.currentNode as Text);
-        }
-
-        // 1. Build a map of normalized character index -> (original node, offset)
-        let normalizedFullText = '';
-        const charMap: Array<{ node: Text; offset: number }> = [];
-
-        textNodes.forEach(node => {
-            const text = node.textContent || '';
-            for (let i = 0; i < text.length; i++) {
-                const char = text[i];
-                // Check if this character would be preserved by our normalization
-                const isPreserved = !/[\s\u3000]/.test(char) && !/[,，.。、;；:：!！?？""''「」『』（）()[\]【】《》<>]/.test(char);
-                if (isPreserved) {
-                    charMap.push({ node, offset: i });
-                    normalizedFullText += char.toLowerCase();
-                }
-            }
-        });
-
-        // 2. Find the match in the normalized text
-        const matchIndex = normalizedFullText.indexOf(normalizedSearch.toLowerCase());
-        if (matchIndex === -1) {
-            console.warn('[Highlight] Precise normalized match failed');
-            return;
-        }
-
-        // 3. Identify all nodes and their ranges involved in the match
-        const startEntry = charMap[matchIndex];
-        const endEntry = charMap[matchIndex + normalizedSearch.length - 1];
-
-        if (!startEntry || !endEntry) return;
-
-        // Find all nodes between start node and end node in textNodes array
-        const startIndex = textNodes.indexOf(startEntry.node);
-        const endIndex = textNodes.indexOf(endEntry.node);
-
-        if (startIndex === -1 || endIndex === -1) return;
-
-        // Highlight affected nodes
-        for (let i = startIndex; i <= endIndex; i++) {
-            const node = textNodes[i];
-            const parent = node.parentNode;
-            if (!parent) continue;
-
-            const mark = document.createElement('mark');
-            mark.className = 'risk-highlight';
-            mark.style.backgroundColor = 'rgba(252, 165, 165, 0.7)';
-            mark.style.padding = '3px 0'; // Vertical padding only to avoid layout shifts
-            mark.style.borderRadius = '2px';
-            mark.style.fontWeight = '500';
-
-            // Wrap the whole node content for simplicity in this loop
-            // In a truly precise version, we'd split the start and end nodes
-            // but wrapping involved nodes is usually sufficient for visual feedback.
-            parent.replaceChild(mark, node);
-            mark.appendChild(node);
-        }
-
-        console.log('[Highlight] ✓ Multi-node highlight applied successfully');
-    };
 
     const handleRiskClick = (riskId: string) => {
         setActiveRiskId(riskId);

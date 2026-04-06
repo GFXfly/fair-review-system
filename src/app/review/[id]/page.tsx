@@ -7,6 +7,7 @@ import styles from './page.module.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import RiskFeedback from '@/components/RiskFeedback';
+import { formatParagraphText, getCategoryLabel, parseDocContent, type DocParagraph } from './doc-utils';
 
 // --- Mock Data ---
 
@@ -52,37 +53,6 @@ const MOCK_RISKS = [
 
 // --- Components ---
 
-const formatParagraphText = (text: string) => {
-    // Regex to match "第X条", "1.", "2.", "（一）", "一、" at start of line
-    const regex = /^((?:第[0-9零一二三四五六七八九十百千万]+条)|(?:[0-9]+\.)|(?:（[0-9零一二三四五六七八九十]+）)|(?:[一二三四五六七八九十]+、))/;
-    const match = text.match(regex);
-
-    if (match) {
-        const titlePart = match[1];
-        const restPart = text.substring(titlePart.length);
-        return (
-            <>
-                <strong style={{ fontWeight: 600 }}>{titlePart}</strong>{restPart}
-            </>
-        );
-    }
-    return text;
-};
-
-// Map category to Chinese document type label
-const getCategoryLabel = (category: string): string => {
-    const categoryMap: Record<string, string> = {
-        'BIDDING': '招标文件',
-        'SUBSIDY': '补贴政策',
-        'MARKET_ACCESS': '市场准入文件',
-        'INDUSTRIAL': '产业扶持政策',
-        'SPECIAL_FUND': '专项资金文件',
-        'IGNORE': '非政策文件',
-        'POLICY': '政策文件',
-    };
-    return categoryMap[category] || '政策文件';
-};
-
 export default function ReviewPage() {
     const router = useRouter();
     const params = useParams();
@@ -99,7 +69,7 @@ export default function ReviewPage() {
     // If 'temp', start empty to wait for sessionStorage. If not, use Mock.
     // Initialize state
     // We start with empty/loading state.
-    const [docContent, setDocContent] = useState<any[]>([]);
+    const [docContent, setDocContent] = useState<DocParagraph[]>([]);
     const [risks, setRisks] = useState<any[]>([]);
     const [summary, setSummary] = useState("正在加载分析结果...");
     const [fileName, setFileName] = useState("正在加载...");
@@ -180,139 +150,6 @@ export default function ReviewPage() {
         }
 
         return Array.from(matchedIds);
-    };
-
-    // Helper to parse content into paragraphs and robust tables
-    const parseDocContent = (text: string) => {
-        if (!text) return [];
-        const lines = text.split('\n');
-        const newContent: any[] = [];
-        let pCounter = 0;
-
-        // Smart Table Detection State Machine
-        let currentTableBuffer: string[] = [];
-        let inTable = false;
-
-        const flushTable = () => {
-            if (currentTableBuffer.length > 0) {
-                // Determine max columns to normalize grid
-                let maxCols = 0;
-
-                // Advanced Row Merging Strategy
-                // Goal: Fix fragmented rows like "Technique\nAdvance" becoming 2 rows instead of 1 cell
-                // or "Input | 20" becoming 2 rows.
-
-                // 1. Initial Clean: remove garbage lines
-                let rowsRaw = currentTableBuffer.filter(rowStr => rowStr.replace(/[|\s]/g, '').length > 0);
-
-                // 2. Normalize Pipes: ensure every row string handles pipes consistently
-                // We trust explicit pipes '|' as delimiters.
-                // If a line HAS NO pipes, but we are in a table, it is likely a cell continuation OR a fragmented cell.
-
-                const finalRows: string[][] = [];
-
-                rowsRaw.forEach(rowStr => {
-                    // Normalize: Remove outer pipes
-                    const content = rowStr.trim().replace(/^\||\|$/g, '');
-
-                    // Split by pipe
-                    // Note: If explicit pipes exist, use them. 
-                    // If NOT, we need to decide if this is a new row or part of previous.
-
-                    if (rowStr.includes('|')) {
-                        // Explicit structure found
-                        const cells = content.split('|').map(c => c.trim());
-                        if (cells.length > maxCols) maxCols = cells.length;
-                        finalRows.push(cells);
-                    } else {
-                        // No pipes. This is the tricky case (Fragments).
-                        // Case A: It's a text continuation of the previous cell (e.g. "10\n万元")
-                        // Case B: It's a next cell value that lost its pipe (e.g. "20" following "Item Input")
-
-                        if (finalRows.length > 0) {
-                            const lastRow = finalRows[finalRows.length - 1];
-
-                            // Heuristic: If the last row is "short" (fewer cols than maxCols detected so far),
-                            // maybe this line is the Next Cell?
-                            if (lastRow.length < maxCols) {
-                                lastRow.push(rowStr.trim());
-                            } else {
-                                // Otherwise, append to the LAST cell of last row (Text Wrap)
-                                lastRow[lastRow.length - 1] += rowStr.trim();
-                            }
-                        } else {
-                            // Orphan text at start of table? Treat as single cell row
-                            finalRows.push([rowStr.trim()]);
-                        }
-                    }
-                });
-
-                if (finalRows.length > 0) {
-                    newContent.push({
-                        id: `p_${pCounter++}`,
-                        type: 'smart_table',
-                        rows: finalRows,
-                        maxCols: maxCols || 1
-                    });
-                }
-                currentTableBuffer = [];
-            }
-        };
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trimEnd();
-            const trimmedLine = line.trim();
-            const hasPipe = trimmedLine.includes('|');
-
-            // Heuristic for Table Start/Continuance
-            // 1. Line has Pipe -> Definitely Table
-            // 2. Line has NO Pipe, but we are InTable?
-            //    -> Check if it looks like a Section Header (Long text, no numbers/short phrases).
-            //    -> If Section Header, BREAK Table.
-
-            if (hasPipe) {
-                if (!inTable) inTable = true;
-                currentTableBuffer.push(trimmedLine);
-            } else if (inTable) {
-                // We are in table, but line has no pipe.
-                // Is this a Table Exit signal?
-
-                // Signal 1: Empty Line -> Exit
-                if (trimmedLine.length === 0) {
-                    flushTable();
-                    inTable = false;
-                }
-                // Signal 2: Long continuous text (likely a title or paragraph, e.g. "附件2...")
-                // Heuristic: Length > 20 chars usually means it's not a fragmented table cell value
-                else if (trimmedLine.length > 30) {
-                    flushTable();
-                    inTable = false;
-                    // Push this line as normal text
-                    newContent.push({
-                        id: `p_${pCounter++}`,
-                        type: 'text',
-                        text: line
-                    });
-                }
-                // Signal 3: It looks like a short value ("20", "10%", "Project Input") -> Keep in table
-                else {
-                    currentTableBuffer.push(trimmedLine);
-                }
-            } else {
-                // Not in table, not a pipe line. Normal text.
-                if (trimmedLine.length > 0) {
-                    newContent.push({
-                        id: `p_${pCounter++}`,
-                        type: (i === 0 && pCounter === 1) ? 'title' : 'text',
-                        text: line
-                    });
-                }
-            }
-        }
-        // Flush remaining
-        if (inTable) flushTable();
-
-        return newContent;
     };
 
     // Load data from sessionStorage if id is 'temp'
@@ -975,7 +812,7 @@ export default function ReviewPage() {
                                         <div
                                             className={styles.htmlContent}
                                             data-html-content="true"
-                                            dangerouslySetInnerHTML={{ __html: para.html }}
+                                            dangerouslySetInnerHTML={{ __html: para.html ?? '' }}
                                         />
                                     ) : para.type === 'smart_table' ? (
                                         <div className={styles.markdownTableWrapper}>
@@ -1099,7 +936,7 @@ export default function ReviewPage() {
                                             </ReactMarkdown>
                                         </div>
                                     ) : (
-                                        formatParagraphText(para.text)
+                                        formatParagraphText(para.text ?? '')
                                     )}
                                 </div>
                             );

@@ -1,4 +1,4 @@
-// src/app/review/[id]/doc-utils.ts
+// src/app/review/[id]/doc-utils.tsx
 
 import React from 'react';
 

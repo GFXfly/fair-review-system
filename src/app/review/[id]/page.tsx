@@ -170,7 +170,7 @@ export default function ReviewPage() {
                     }
 
                     // 1. Set Document Content
-                    let newDocContent: any[] = [];
+                    let newDocContent: DocParagraph[] = [];
 
                     // Prefer HTML rendering if available (preserves table structure perfectly)
                     if (data.html) {
@@ -247,7 +247,7 @@ export default function ReviewPage() {
                     // 设置真实的reviewId（对于从数据库加载的记录，就是id本身）
                     setRealReviewId(id);
 
-                    let newDocContent: any[] = [];
+                    let newDocContent: DocParagraph[] = [];
 
                     // Prefer HTML rendering if available (preserves table structure and enables highlighting)
                     if (data.html) {

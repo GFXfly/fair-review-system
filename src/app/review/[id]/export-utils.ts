@@ -3,7 +3,7 @@
 export interface RiskItem {
     id: string;
     type: string;
-    level: string;
+    level: 'high' | 'medium';
     title: string;
     reason: string;
     suggestion?: string;

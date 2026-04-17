@@ -18,6 +18,26 @@ import {
     RegulationWithSimilarity
 } from '@/lib/rag';
 
+const RAG_CONCURRENCY = Math.max(1, parseInt(process.env.RAG_CONCURRENCY || '3'));
+
+async function parallelMap<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T, idx: number) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (true) {
+            const i = cursor++;
+            if (i >= items.length) return;
+            results[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
 /**
  * 智能检索代理配置
  */
@@ -272,25 +292,25 @@ JSON 数组，每个元素是一个改写后的查询字符串。
             return [];
         }
 
-        console.log(`[RetrievalAgent] 🎯 开始融合检索：${queries.length} 个查询`);
+        console.log(`[RetrievalAgent] 🎯 开始融合检索：${queries.length} 个查询 (并发=${RAG_CONCURRENCY})`);
 
         const allResults = new Map<number, any>();
 
-        // 对每个查询进行迭代检索
-        for (let i = 0; i < queries.length; i++) {
-            const query = queries[i];
-            console.log(`\n[查询 ${i + 1}/${queries.length}] "${query.substring(0, 40)}${query.length > 40 ? '...' : ''}"`);
-
+        // 并发执行迭代检索，上限由 RAG_CONCURRENCY 控制
+        const perQueryResults = await parallelMap(queries, RAG_CONCURRENCY, async (query, i) => {
+            console.log(`[查询 ${i + 1}/${queries.length}] "${query.substring(0, 40)}${query.length > 40 ? '...' : ''}"`);
             const results = await this.iterativeSearch(query, targetType);
+            return { query, i, results };
+        });
 
-            // 合并结果（保留最高相似度，并记录是哪个查询找到的）
+        for (const { query, i, results } of perQueryResults) {
             results.forEach(item => {
                 const existing = allResults.get(item.id);
                 if (!existing || item.similarity > existing.similarity) {
                     allResults.set(item.id, {
                         ...item,
-                        matchedQuery: query,      // 记录匹配的查询
-                        queryIndex: i             // 记录查询索引
+                        matchedQuery: query,
+                        queryIndex: i
                     });
                 }
             });
@@ -349,31 +369,26 @@ JSON 数组，每个元素是一个改写后的查询字符串。
 
         const globalResults = new Map<number, any>();
 
-        // 对每个风险片段进行处理
-        for (let i = 0; i < riskKeywords.length; i++) {
-            const keyword = riskKeywords[i];
-            console.log(`\n[风险片段 ${i + 1}/${riskKeywords.length}]`);
-            console.log(`原文：${keyword.substring(0, 80)}${keyword.length > 80 ? '...' : ''}`);
-
-            // Step 1: 查询重写
+        // 并发处理每个风险片段：查询重写 + 融合检索 (并发上限由 RAG_CONCURRENCY 控制)
+        const perKeywordResults = await parallelMap(riskKeywords, RAG_CONCURRENCY, async (keyword, i) => {
+            console.log(`[风险片段 ${i + 1}/${riskKeywords.length}] ${keyword.substring(0, 60)}${keyword.length > 60 ? '...' : ''}`);
             const queries = await this.rewriteQuery(keyword);
-
-            // Step 2: 对所有查询进行融合检索
             const results = await this.fusionSearch(queries, targetType);
+            return { keyword, i, results };
+        });
 
-            // Step 3: 合并到全局结果
+        for (const { keyword, i, results } of perKeywordResults) {
             results.forEach(item => {
                 const existing = globalResults.get(item.id);
                 if (!existing || item.similarity > existing.similarity) {
                     globalResults.set(item.id, {
                         ...item,
-                        sourceRisk: keyword,      // 记录来源风险片段
-                        riskIndex: i              // 记录风险片段索引
+                        sourceRisk: keyword,
+                        riskIndex: i
                     });
                 }
             });
-
-            console.log(`  → 该片段贡献 ${results.length} 个结果，全局累计 ${globalResults.size} 个`);
+            console.log(`  → 片段${i + 1}贡献 ${results.length} 个结果，全局累计 ${globalResults.size} 个`);
         }
 
         // 最终全局排序

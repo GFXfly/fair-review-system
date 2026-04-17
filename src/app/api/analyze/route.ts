@@ -33,27 +33,51 @@ async function updateProgress(recordId: string, progress: number, message: strin
 }
 
 /**
- * Deduplicate risks based on location text similarity
+ * Deduplicate risks. A pair is considered duplicate when EITHER:
+ *   (a) one normalized location is a substring of the other (with length ratio >= 0.5), OR
+ *   (b) Jaccard char-set similarity >= 0.9 AND length ratio >= 0.6
+ *   (c) descriptions nearly identical (>= 0.9 char-set Jaccard)
+ * Char-set Jaccard alone is too lenient for Chinese policy text because
+ * natural char overlap is high even between unrelated clauses.
  */
 function deduplicateRisks(risks: any[]): any[] {
     if (risks.length <= 1) return risks;
 
-    const normalize = (text: string) => {
-        return text
+    const normalize = (text: string) =>
+        (text || '')
             .replace(/[\s\u3000]/g, '')
-            .replace(/[,，.。、;；:：!！?？""\"''()[\]【】《》<>]/g, '')
+            .replace(/[,，.。、;；:：!！?？""\"''()[\]【】《》<>「」]/g, '')
             .toLowerCase();
-    };
 
-    const similarity = (a: string, b: string): number => {
-        const normA = normalize(a);
-        const normB = normalize(b);
+    const jaccard = (normA: string, normB: string): number => {
         if (!normA || !normB) return 0;
         const setA = new Set(normA.split(''));
         const setB = new Set(normB.split(''));
-        const intersection = new Set([...setA].filter(x => setB.has(x)));
-        const union = new Set([...setA, ...setB]);
-        return intersection.size / union.size;
+        let intersection = 0;
+        setA.forEach(c => { if (setB.has(c)) intersection++; });
+        const union = setA.size + setB.size - intersection;
+        return union === 0 ? 0 : intersection / union;
+    };
+
+    const isDuplicate = (a: any, b: any): boolean => {
+        const locA = normalize(a.location || '');
+        const locB = normalize(b.location || '');
+        if (!locA || !locB) return false;
+
+        const lenRatio = Math.min(locA.length, locB.length) / Math.max(locA.length, locB.length);
+
+        // (a) substring containment with reasonable length ratio
+        if (lenRatio >= 0.5 && (locA.includes(locB) || locB.includes(locA))) return true;
+
+        // (b) high char-set overlap + similar length
+        if (lenRatio >= 0.6 && jaccard(locA, locB) >= 0.9) return true;
+
+        // (c) near-identical descriptions
+        const descA = normalize(a.description || '');
+        const descB = normalize(b.description || '');
+        if (descA.length >= 30 && descB.length >= 30 && jaccard(descA, descB) >= 0.9) return true;
+
+        return false;
     };
 
     const deduplicated: any[] = [];
@@ -65,8 +89,7 @@ function deduplicateRisks(risks: any[]): any[] {
         const similarRisks = [risk];
         for (let j = i + 1; j < risks.length; j++) {
             if (processed.has(j)) continue;
-            const sim = similarity(risk.location || '', risks[j].location || '');
-            if (sim > 0.95) {
+            if (isDuplicate(risk, risks[j])) {
                 similarRisks.push(risks[j]);
                 processed.add(j);
             }
@@ -162,10 +185,13 @@ async function processAnalysisAsync(
         const finalRisks = debateResults.filter(risk => risk !== null);
 
         // Step 5: Risk Radar (85%)
+        // Run for any category when there's at least one High-risk finding —
+        // system-level risks (利益输送 / 定向招标) show up in POLICY docs too,
+        // not only BIDDING files.
         await updateProgress(recordId, 85, '正在生成风险预警...');
         let radarAlert = null;
         const hasHighRisk = finalRisks.some(r => r.risk_level === 'High');
-        if (gatekeeperResult.category === 'BIDDING' && hasHighRisk) {
+        if (hasHighRisk) {
             radarAlert = await runRiskRadar(fileName, finalRisks);
         }
 

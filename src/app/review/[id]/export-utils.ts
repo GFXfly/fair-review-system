@@ -1,9 +1,11 @@
 // src/app/review/[id]/export-utils.ts
 
+export type RiskLevel = 'high' | 'medium' | 'low';
+
 export interface RiskItem {
     id: string;
     type: string;
-    level: 'high' | 'medium';
+    level: RiskLevel;
     title: string;
     reason: string;
     suggestion?: string;
@@ -11,7 +13,17 @@ export interface RiskItem {
     law: string;
     case: string;
     paragraphIds?: string[];
+    defense?: string | null;
+    rulingReason?: string | null;
+    confidence?: number | null;
 }
+
+const LEVEL_LABEL: Record<RiskLevel, string> = { high: '高', medium: '中', low: '低' };
+const LEVEL_COLOR: Record<RiskLevel, string> = {
+    high: 'FF0000',
+    medium: 'FFA500',
+    low: '2563EB',
+};
 
 export const exportReviewReport = async (
     risks: RiskItem[],
@@ -50,8 +62,8 @@ export const exportReviewReport = async (
                         new Paragraph({ children: [new TextRun({ text: risk.title, bold: true })] }),
                         new Paragraph({
                             children: [new TextRun({
-                                text: `风险等级: ${risk.level === 'high' ? '高' : '中'}`,
-                                color: risk.level === 'high' ? 'FF0000' : 'FFA500',
+                                text: `风险等级: ${LEVEL_LABEL[risk.level] ?? '中'}`,
+                                color: LEVEL_COLOR[risk.level] ?? 'FFA500',
                             })],
                         }),
                     ],

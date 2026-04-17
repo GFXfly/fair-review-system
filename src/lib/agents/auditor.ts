@@ -19,13 +19,33 @@ export interface AuditIssue {
     confidence?: number;
 }
 
+const KEYWORD_WINDOW_SIZE = 8000;
+const KEYWORD_WINDOW_OVERLAP = 1000;
+const KEYWORD_MAX_WINDOWS = 4;
+const KEYWORD_WINDOW_CONCURRENCY = Math.max(
+    1,
+    parseInt(process.env.KEYWORD_WINDOW_CONCURRENCY || '2'),
+);
+
+function buildSlidingWindows(text: string): string[] {
+    if (text.length <= KEYWORD_WINDOW_SIZE) return [text];
+    const windows: string[] = [];
+    const step = KEYWORD_WINDOW_SIZE - KEYWORD_WINDOW_OVERLAP;
+    for (let start = 0; start < text.length; start += step) {
+        windows.push(text.substring(start, start + KEYWORD_WINDOW_SIZE));
+        if (windows.length >= KEYWORD_MAX_WINDOWS) break;
+    }
+    return windows;
+}
+
 /**
- * 🔥 新增：风险片段提取函数
- * 用于在正式审查前，快速识别文档中可能涉及公平竞争问题的关键片段
- * 这些片段将用于精准检索相似案例
+ * 🔥 风险片段提取
+ * 用于在正式审查前，快速识别文档中可能涉及公平竞争问题的关键片段。
+ * - 短文档直接扫描一次；长文档用滑动窗口覆盖全文后去重合并。
  */
 async function extractRiskKeywords(text: string): Promise<string[]> {
-    const truncatedText = text.substring(0, 8000); // 使用前8000字进行快速扫描
+    const windows = buildSlidingWindows(text);
+    console.log(`[RAG] 风险片段扫描：文档长度=${text.length}, 窗口数=${windows.length}`);
 
     const systemPrompt = `
 你是一个公平竞争审查专家。请快速扫描以下政府文件，提取出所有可能涉及公平竞争问题的"风险关键片段"。
@@ -66,23 +86,59 @@ async function extractRiskKeywords(text: string): Promise<string[]> {
 如果文档没有明显的风险片段，返回空数组：[]
 `;
 
-    const userPrompt = `请分析以下文件内容，提取风险关键片段：\n\n${truncatedText}`;
-
-    try {
-        const result = await callLLM(systemPrompt, userPrompt, true, 'deepseek-chat');
-        if (!result) return [];
-
-        const keywords = JSON.parse(result);
-        if (Array.isArray(keywords)) {
-            console.log(`[RAG] 🎯 提取到 ${keywords.length} 个风险关键片段`);
-            keywords.forEach((k, i) => console.log(`  ${i + 1}. ${k.substring(0, 50)}...`));
-            return keywords.slice(0, 8); // 最多8个
+    const scanWindow = async (chunk: string, idx: number): Promise<string[]> => {
+        try {
+            const result = await callLLM(
+                systemPrompt,
+                `请分析以下文件内容（片段 ${idx + 1}/${windows.length}），提取风险关键片段：\n\n${chunk}`,
+                true,
+                'deepseek-chat',
+            );
+            if (!result) return [];
+            const parsed = JSON.parse(result);
+            return Array.isArray(parsed) ? parsed.filter((k: unknown) => typeof k === 'string') : [];
+        } catch (e) {
+            console.error(`[RAG] 窗口${idx + 1}风险片段提取失败:`, e);
+            return [];
         }
-        return [];
-    } catch (e) {
-        console.error('[RAG] 风险片段提取失败:', e);
-        return [];
+    };
+
+    // Concurrency-bounded fan-out across windows.
+    const perWindow: string[][] = new Array(windows.length);
+    let cursor = 0;
+    const workers = Array.from(
+        { length: Math.min(KEYWORD_WINDOW_CONCURRENCY, windows.length) },
+        async () => {
+            while (true) {
+                const i = cursor++;
+                if (i >= windows.length) return;
+                perWindow[i] = await scanWindow(windows[i], i);
+            }
+        },
+    );
+    await Promise.all(workers);
+
+    // Dedup keywords by normalized text (drop punctuation + whitespace).
+    const normalize = (s: string) =>
+        s.replace(/[\s\u3000,.，。、;；:：!！?？"""''（）()【】\-_]/g, '').toLowerCase();
+
+    const seen = new Set<string>();
+    const merged: string[] = [];
+    for (const batch of perWindow) {
+        if (!batch) continue;
+        for (const k of batch) {
+            const key = normalize(k);
+            if (key.length < 4) continue;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            merged.push(k);
+        }
     }
+
+    const final = merged.slice(0, 12);
+    console.log(`[RAG] 🎯 合并后 ${final.length} 个风险关键片段（原始 ${merged.length}）`);
+    final.forEach((k, i) => console.log(`  ${i + 1}. ${k.substring(0, 50)}...`));
+    return final;
 }
 
 export async function runAuditor(category: string, text: string, guidance: string = ""): Promise<AuditIssue[]> {

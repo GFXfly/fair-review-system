@@ -293,11 +293,13 @@ function DashboardContent() {
     };
 
     const [analyzingStatus, setAnalyzingStatus] = useState("正在进行智能审查...");
+    const [analyzingProgress, setAnalyzingProgress] = useState(0);
 
     const startReview = async () => {
         if (!selectedFile) return;
         setIsAnalyzing(true);
         setAnalyzingStatus("正在解析文档内容...");
+        setAnalyzingProgress(0);
 
         try {
             const formData = new FormData();
@@ -331,14 +333,16 @@ function DashboardContent() {
 
             console.log(`[Review] Started async review with ID: ${recordId}`);
 
-            // Step 2: Poll for status until complete
-            const pollInterval = 2000; // 2 seconds
-            const maxPolls = 300; // Max 10 minutes (300 * 2s)
-            let polls = 0;
+            // Step 2: Poll with exponential backoff. Start at 2s, grow ×1.5 up to 8s cap.
+            // Reset to base whenever progress advances so we stay responsive during active phases.
+            const BASE_INTERVAL = 2000;
+            const MAX_INTERVAL = 8000;
+            const MAX_ELAPSED_MS = 10 * 60 * 1000; // 10 minutes
+            const startedAt = Date.now();
+            let interval = BASE_INTERVAL;
+            let lastProgress = -1;
 
             const pollStatus = async (): Promise<void> => {
-                polls++;
-
                 try {
                     const statusResponse = await fetch(`/api/reviews/${recordId}/status`);
 
@@ -348,18 +352,23 @@ function DashboardContent() {
 
                     const statusData = await statusResponse.json();
 
-                    // Update UI with current progress
+                    if (typeof statusData.progress === 'number') {
+                        setAnalyzingProgress(statusData.progress);
+                        if (statusData.progress > lastProgress) {
+                            lastProgress = statusData.progress;
+                            interval = BASE_INTERVAL;
+                        } else {
+                            interval = Math.min(Math.round(interval * 1.5), MAX_INTERVAL);
+                        }
+                    }
                     if (statusData.progressMessage) {
-                        setAnalyzingStatus(`${statusData.progressMessage} (${statusData.progress}%)`);
+                        setAnalyzingStatus(statusData.progressMessage);
                     }
 
-                    // Check status
                     if (statusData.status === 'completed') {
-                        // Fetch full review data
                         const fullReviewResponse = await fetch(`/api/reviews/${recordId}`);
                         const fullReviewData = await fullReviewResponse.json();
 
-                        // Store result and navigate
                         sessionStorage.setItem('temp_review_data', JSON.stringify({
                             fileName: selectedFile.name,
                             fileSize: selectedFile.size,
@@ -367,27 +376,26 @@ function DashboardContent() {
                             ...fullReviewData
                         }));
 
+                        setAnalyzingProgress(100);
                         setAnalyzingStatus("审查完成，正在生成报告...");
                         setTimeout(() => router.push(`/review/${recordId}`), 500);
                         return;
 
                     } else if (statusData.status === 'ignored') {
-                        // Document doesn't need review
                         setAnalyzingStatus("该文件无需审查");
                         alert(`【无需审查】\n\n该文件不属于公平竞争审查范围：\n${statusData.progressMessage || '已自动跳过'}`);
                         setIsAnalyzing(false);
-                        window.location.reload(); // Refresh to show updated list
+                        window.location.reload();
                         return;
 
                     } else if (statusData.status === 'failed') {
                         throw new Error(statusData.progressMessage || '审查失败');
 
-                    } else if (polls >= maxPolls) {
+                    } else if (Date.now() - startedAt >= MAX_ELAPSED_MS) {
                         throw new Error('审查超时，请刷新页面查看审查记录');
 
                     } else {
-                        // Still processing, poll again
-                        setTimeout(pollStatus, pollInterval);
+                        setTimeout(pollStatus, interval);
                     }
 
                 } catch (pollError: any) {
@@ -548,6 +556,29 @@ function DashboardContent() {
                                     <div className={styles.analyzingState}>
                                         <div className={styles.spinner}></div>
                                         <div className={styles.analyzingText}>{analyzingStatus}</div>
+                                        <div style={{ width: '80%', maxWidth: '480px', marginTop: '16px' }}>
+                                            <div style={{
+                                                height: '8px',
+                                                background: '#e5e7eb',
+                                                borderRadius: '999px',
+                                                overflow: 'hidden',
+                                            }}>
+                                                <div style={{
+                                                    width: `${Math.min(100, Math.max(0, analyzingProgress))}%`,
+                                                    height: '100%',
+                                                    background: 'linear-gradient(90deg, #3b82f6, #6366f1)',
+                                                    transition: 'width 400ms ease',
+                                                }} />
+                                            </div>
+                                            <div style={{
+                                                marginTop: '6px',
+                                                fontSize: '12px',
+                                                color: '#6b7280',
+                                                textAlign: 'right',
+                                            }}>
+                                                {analyzingProgress}%
+                                            </div>
+                                        </div>
                                         <div className={styles.analyzingSubText}>AI 多智能体系统正在云端计算中...</div>
                                     </div>
                                 ) : selectedFile ? (

@@ -4,6 +4,54 @@ import { TextChunker } from '@/lib/text-utils';
 import { AuditIssue } from './auditor';
 import { APP_CONFIG } from '@/lib/config';
 
+/**
+ * Builds a context window around risk.location so the Defender sees the
+ * actual clause in situ rather than only the first 5000 chars of the doc.
+ * Returns the raw doc (truncated) when no match is found.
+ */
+function buildDebateContext(risk: AuditIssue, docText: string): string {
+    const MAX_CONTEXT = TextChunker.DEBATE_CHUNK;
+    if (!risk.location || docText.length <= MAX_CONTEXT) {
+        return TextChunker.getChunkForAgent(docText, 'debate');
+    }
+
+    // Try direct substring match first (cheap path).
+    let matchIdx = docText.indexOf(risk.location);
+
+    // Fallback: match on a cleaned prefix of the location to tolerate minor
+    // quoting / whitespace differences introduced by the auditor.
+    if (matchIdx < 0) {
+        const probe = risk.location.replace(/\s+/g, '').slice(0, 40);
+        if (probe.length >= 10) {
+            const cleanedDoc = docText.replace(/\s+/g, '');
+            const probeIdx = cleanedDoc.indexOf(probe);
+            if (probeIdx >= 0) {
+                // Map the cleaned-doc index back to the raw doc.
+                let rawIdx = 0;
+                let cleanCount = 0;
+                while (rawIdx < docText.length && cleanCount < probeIdx) {
+                    if (!/\s/.test(docText[rawIdx])) cleanCount++;
+                    rawIdx++;
+                }
+                matchIdx = rawIdx;
+            }
+        }
+    }
+
+    if (matchIdx < 0) {
+        return TextChunker.getChunkForAgent(docText, 'debate');
+    }
+
+    const half = Math.floor((MAX_CONTEXT - risk.location.length) / 2);
+    const start = Math.max(0, matchIdx - Math.max(half, 500));
+    const end = Math.min(docText.length, matchIdx + risk.location.length + Math.max(half, 500));
+    const window = docText.substring(start, end);
+
+    const prefix = start > 0 ? '...(省略前文)\n' : '';
+    const suffix = end < docText.length ? '\n...(省略后文)' : '';
+    return `${prefix}${window}${suffix}`;
+}
+
 // ==========================================
 // 🔥 优化2：模型配置（能力对等的多样性）
 // ==========================================
@@ -31,8 +79,8 @@ export async function runDefender(risk: AuditIssue, docText: string): Promise<st
 2. 该条款的“限制”是否具有必要性、合理性（如为了实现特定的社会公共利益，且没有更好替代方案）？
 3. 上下文中是否有其他前置条件减免了其违规性？
 
-【文件内容】
-${TextChunker.getChunkForAgent(docText, 'debate')} ... (此处可能省略部分内容)
+【文件内容（已定位到风险条款附近）】
+${buildDebateContext(risk, docText)}
 
 【输出要求】
 请直接输出一段简练的“辩护词”。

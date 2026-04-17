@@ -86,18 +86,11 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        // Transform data to match the format used in review page
-        // We need to reconstruct the "Gatekeeper" and "Auditor" structure
-        // Since we don't store full text in DB currently, we might need to handle that.
-        // However, the user just wants to see the risks.
-
-
-        // @ts-ignore
         const responseData = {
             id: review.id,
             fileName: review.fileName,
-            text: review.originalText || "",  // Return stored original text
-            html: review.originalHtml || "",  // Return stored original HTML for table rendering
+            text: review.originalText || "",
+            html: review.originalHtml || "",
             gatekeeper: {
                 category: (review.summary && review.summary.includes('文件类型：')) ? review.summary.split('。')[0].replace('文件类型：', '') : '未知',
                 reason: review.summary || '无摘要',
@@ -111,7 +104,10 @@ export async function GET(
                 location: r.location,
                 suggestion: r.suggestion,
                 law: r.law,
-                relatedCase: r.relatedCase
+                relatedCase: r.relatedCase,
+                defense: r.defense ?? null,
+                rulingReason: r.rulingReason ?? null,
+                confidence: r.confidence ?? null,
             }))
         };
 

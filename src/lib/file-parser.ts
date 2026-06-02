@@ -142,6 +142,19 @@ export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
                     return match;
                 });
 
+                // mammoth 把 Word 中被正文打断的自动编号标题，转成了多个各自独立的单项
+                // <ol><li>…</li></ol>，浏览器渲染时每个独立 <ol> 都从 1 开始，导致序号全是"1."。
+                // 这类“单项有序列表”实为章节标题，转成 <h4> 去掉错误编号；多项 <ol>（真正的
+                // 列表）保持不变。
+                displayHtml = displayHtml.replace(/<ol>([\s\S]*?)<\/ol>/gi, (match, inner) => {
+                    const liCount = (inner.match(/<li\b/gi) || []).length;
+                    if (liCount !== 1) {
+                        return match;
+                    }
+                    const liInner = inner.replace(/^\s*<li\b[^>]*>([\s\S]*?)<\/li>\s*$/i, '$1').trim();
+                    return liInner ? `<h4>${liInner}</h4>` : '';
+                });
+
                 // Decode entities in HTML version too
                 displayHtml = displayHtml
                     .replace(/&nbsp;/g, " ")

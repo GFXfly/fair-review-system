@@ -203,10 +203,9 @@ function DashboardContent() {
 
     const fetchReviewRecords = async () => {
         try {
-            // If user is admin, fetch all records; otherwise fetch only user's own records
-            const url = user?.role === 'admin' ? '/api/reviews?mode=admin' : '/api/reviews';
-            console.log(`[Dashboard] Fetching reviews. User role: ${user?.role}, URL: ${url}`);
-            const res = await fetch(url, { cache: 'no-store' });
+            // 范围由后端按 session 的 role 自动决定（admin 看全部 / 普通看自己），
+            // 因此无需等待前端 user 状态，可与鉴权请求并行，消除首屏串行延迟。
+            const res = await fetch('/api/reviews', { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
                 console.log(`[Dashboard] Received ${data.length} review records`);
@@ -229,10 +228,10 @@ function DashboardContent() {
         if (activeTab === 'regulations' || activeTab === 'cases') {
             fetchKnowledge(searchQuery);
         }
-        if (activeTab === 'workspace' && user) {
+        if (activeTab === 'workspace') {
             fetchReviewRecords();
         }
-    }, [activeTab, user]);
+    }, [activeTab]);
 
 
 
@@ -623,7 +622,7 @@ function DashboardContent() {
                         <div className={styles.historySection}>
                             <div className={styles.sectionHeader}>
                                 <h2>🕒 最近审查记录</h2>
-                                <button className={styles.linkBtn}>查看全部台账</button>
+                                <button className={styles.linkBtn} onClick={() => router.push('/ledger')}>查看全部台账</button>
                             </div>
                             <table className={styles.table}>
                                 <thead>

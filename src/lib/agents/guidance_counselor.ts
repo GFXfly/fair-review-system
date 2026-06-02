@@ -1,5 +1,5 @@
 
-import { callLLM } from '@/lib/llm';
+import { callLLM, firstArray, FLASH_MODEL } from '@/lib/llm';
 import { prisma } from '@/lib/prisma';
 
 export async function runGuidanceCounselor(text: string, category: string = ''): Promise<string> {
@@ -87,13 +87,12 @@ export async function runGuidanceCounselor(text: string, category: string = ''):
         const selectionResult = await callLLM(
             "你是一个精准的检索助手。只返回 JSON 数组。",
             selectionPrompt,
-            true, // Expect JSON
-            'deepseek-chat' // Use V3 for fast retrieval
+            { jsonMode: true, model: FLASH_MODEL } // 跑量检索，用 flash
         );
 
         let selectedIds: number[] = [];
         try {
-            selectedIds = JSON.parse(selectionResult || "[]");
+            selectedIds = firstArray<number>(JSON.parse(selectionResult || "[]")) ?? [];
         } catch (e) {
             console.error('[GuidanceCounselor] Failed to parse ID selection:', selectionResult);
             // Fallback: if parsing fails, maybe regex match the IDs?

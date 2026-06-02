@@ -15,6 +15,28 @@ import { applyRateLimit, llmAnalysisRateLimiter, getClientId } from '@/lib/rate-
 // ⚡ Next.js API Route Timeout Configuration
 export const maxDuration = 300; // 300秒 = 5分钟
 
+// 辩论环节并发上限：每个风险点要串行跑 Defender + Judge（Pro 思考模式，单次较慢）。
+// 裸 Promise.all 会让所有风险同时打 LLM，风险点一多就触发 API 限流。这里限流并发。
+const DEBATE_CONCURRENCY = Math.max(1, parseInt(process.env.DEBATE_CONCURRENCY || '3'));
+
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (true) {
+            const i = cursor++;
+            if (i >= items.length) return;
+            results[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
 /**
  * 更新审查进度
  */
@@ -158,8 +180,10 @@ async function processAnalysisAsync(
         const totalRisks = deduplicatedRisks.length;
         console.log('[Debate] Starting debate loop for', totalRisks, 'risks');
 
-        const debateResults = await Promise.all(
-            deduplicatedRisks.map(async (risk, index) => {
+        const debateResults = await mapWithConcurrency(
+            deduplicatedRisks,
+            DEBATE_CONCURRENCY,
+            async (risk, index) => {
                 try {
                     const progressPercent = 40 + Math.round((index / totalRisks) * 40);
                     await updateProgress(recordId, progressPercent,
@@ -179,7 +203,7 @@ async function processAnalysisAsync(
                     console.error('[Debate] Error processing risk:', error);
                     return risk;
                 }
-            })
+            }
         );
 
         const finalRisks = debateResults.filter(risk => risk !== null);

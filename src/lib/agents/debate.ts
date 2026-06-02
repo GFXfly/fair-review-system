@@ -1,5 +1,5 @@
 
-import { callLLM, DEEPSEEK_MODEL, DEEPSEEK_REASONER_MODEL, QWEN_MODEL, GLM_MODEL } from '@/lib/llm';
+import { callLLM, QWEN_MODEL, PRO_MODEL } from '@/lib/llm';
 import { TextChunker } from '@/lib/text-utils';
 import { AuditIssue } from './auditor';
 import { APP_CONFIG } from '@/lib/config';
@@ -55,8 +55,8 @@ function buildDebateContext(risk: AuditIssue, docText: string): string {
 // ==========================================
 // 🔥 优化2：模型配置（能力对等的多样性）
 // ==========================================
-export const DEBATE_MODEL = QWEN_MODEL;      // Defender: Qwen3-235B-A22B（最强辩护能力）
-export const JUDGE_MODEL = DEEPSEEK_REASONER_MODEL;   // Judge: DeepSeek V3.2 思考模式（强力裁决）
+export const DEBATE_MODEL = QWEN_MODEL;   // Defender: Qwen3-235B-A22B（跨厂商对抗，刻意不与 Judge 同源）
+export const JUDGE_MODEL = PRO_MODEL;      // Judge: DeepSeek V4 Pro 思考模式（强力裁决）
 
 /**
  * Agent B: The Defender
@@ -91,8 +91,7 @@ ${buildDebateContext(risk, docText)}
         const response = await callLLM(
             "你是一名专业的政策合规辩护律师。请进行深度思考，使用逻辑推理寻找合法的辩护切入点。",
             prompt,
-            false, // text mode
-            DEBATE_MODEL // Use Qwen for defense
+            { jsonMode: false, model: DEBATE_MODEL } // Qwen，跨厂商对抗
         );
         return response || "无有效辩护理由";
     } catch (e) {
@@ -175,8 +174,7 @@ ${defense}
         const responseCtx = await callLLM(
             "你是一名公正严谨的法官。请严格按照标准进行裁决，输出 JSON 格式结果。",
             prompt,
-            true, // JSON mode
-            JUDGE_MODEL // Use DeepSeek V3 for judging
+            { jsonMode: true, model: JUDGE_MODEL, thinking: true, effort: 'high' } // V4 Pro 思考裁决
         );
 
         if (!responseCtx) return risk; // Fallback

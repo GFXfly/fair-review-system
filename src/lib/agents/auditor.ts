@@ -1,4 +1,4 @@
-import { callLLM } from '@/lib/llm';
+import { callLLM, firstArray, FLASH_MODEL, PRO_MODEL } from '@/lib/llm';
 import { searchSimilarCases, searchSimilarRegulations } from '@/lib/rag';
 import { TextChunker } from '@/lib/text-utils';
 import { APP_CONFIG } from '@/lib/config';
@@ -91,12 +91,11 @@ async function extractRiskKeywords(text: string): Promise<string[]> {
             const result = await callLLM(
                 systemPrompt,
                 `请分析以下文件内容（片段 ${idx + 1}/${windows.length}），提取风险关键片段：\n\n${chunk}`,
-                true,
-                'deepseek-chat',
+                { jsonMode: true, model: FLASH_MODEL }, // 风险片段快速扫描，用 flash
             );
             if (!result) return [];
-            const parsed = JSON.parse(result);
-            return Array.isArray(parsed) ? parsed.filter((k: unknown) => typeof k === 'string') : [];
+            const arr = firstArray<unknown>(JSON.parse(result)) ?? [];
+            return arr.filter((k: unknown): k is string => typeof k === 'string');
         } catch (e) {
             console.error(`[RAG] 窗口${idx + 1}风险片段提取失败:`, e);
             return [];
@@ -369,24 +368,26 @@ export async function runAuditor(category: string, text: string, guidance: strin
       "location": "政策1细则：规模以上制造业企业供电...；政策2细则：规模以上工业企业2026年...；政策5细则：1-2月规模同比增长..."
     }
 
-    【正确示例】✅ 独立输出：
-    [
-      {
-        "id": "risk_1",
-        "location": "政策1细则：规模以上制造业企业供电电压等级10千伏及以上且春节假期期间"不停产"...给予用电补贴",
-        "description": "【规模/业绩限制 + 财政补贴】该条款将用电补贴限定在'规模以上制造业企业'，排除了规模以下企业..."
-      },
-      {
-        "id": "risk_2",
-        "location": "政策2细则：规模以上工业企业2026年一季度产值较2025年一季度产值每增加1000万元奖励2万元",
-        "description": "【规模/业绩限制 + 财政补贴】该条款将产值增长奖励限定在'规模以上工业企业'，排除了规模以下企业..."
-      },
-      {
-        "id": "risk_3",
-        "location": "政策5细则：1-2月规模同比增长的营利性服务业企业，每新增1000万元奖励2万元",
-        "description": "【规模/业绩限制 + 财政补贴】该条款将奖励限定在'规模同比增长的营利性服务业企业'，排除了其他企业..."
-      }
-    ]
+    【正确示例】✅ 独立输出（注意：顶层是包含 risks 数组的对象）：
+    {
+      "risks": [
+        {
+          "id": "risk_1",
+          "location": "政策1细则：规模以上制造业企业供电电压等级10千伏及以上且春节假期期间"不停产"...给予用电补贴",
+          "description": "【规模/业绩限制 + 财政补贴】该条款将用电补贴限定在'规模以上制造业企业'，排除了规模以下企业..."
+        },
+        {
+          "id": "risk_2",
+          "location": "政策2细则：规模以上工业企业2026年一季度产值较2025年一季度产值每增加1000万元奖励2万元",
+          "description": "【规模/业绩限制 + 财政补贴】该条款将产值增长奖励限定在'规模以上工业企业'，排除了规模以下企业..."
+        },
+        {
+          "id": "risk_3",
+          "location": "政策5细则：1-2月规模同比增长的营利性服务业企业，每新增1000万元奖励2万元",
+          "description": "【规模/业绩限制 + 财政补贴】该条款将奖励限定在'规模同比增长的营利性服务业企业'，排除了其他企业..."
+        }
+      ]
+    }
 
     独立输出的好处：
     1. 用户可以逐条定位原文，快速查找
@@ -543,18 +544,22 @@ export async function runAuditor(category: string, text: string, guidance: strin
     2. violated_law字段：必须包含完整法条内容。
     3. reference字段：**严格执行宁缺毋滥原则**。无高匹配度案例时必须留空。若有匹配，必须包含【案例原文】！
 
-    请以 JSON 数组格式返回结果，每个风险点包含以下字段：
-    [
-        {
-            "id": "risk_1",
-            "risk_level": "High" | "Medium" | "Low",
-            "description": "...",
-            "violated_law": "...",
-            "location": "...",
-            "suggestion": "...",
-            "reference": "严格按照上述模板，必须包含【案例原文】。"
-        }
-    ]
+    【输出格式 - 必须严格遵守】
+    返回一个 JSON 对象，顶层必须且只能包含一个 "risks" 数组字段，所有风险点都放进该数组：
+    {
+        "risks": [
+            {
+                "id": "risk_1",
+                "risk_level": "High" | "Medium" | "Low",
+                "description": "...",
+                "violated_law": "...",
+                "location": "...",
+                "suggestion": "...",
+                "reference": "严格按照上述模板，必须包含【案例原文】。"
+            }
+        ]
+    }
+    ⚠️ 即使只发现 1 个风险点，也必须放进 risks 数组；若未发现任何风险，返回 {"risks": []}。不要把单个风险对象直接作为顶层返回。
     `;
 
     // Use TextChunker for consistent truncation
@@ -565,14 +570,31 @@ export async function runAuditor(category: string, text: string, guidance: strin
     ${truncatedText}
     `;
 
-    const resultStr = await callLLM(systemPrompt, userPrompt, true, 'deepseek-reasoner');
+    // 核心审查：质量命门，用 V4 Pro + 思考模式（effort high）
+    const resultStr = await callLLM(systemPrompt, userPrompt, {
+        jsonMode: true,
+        model: PRO_MODEL,
+        thinking: true,
+        effort: 'high',
+    });
 
     if (!resultStr) {
         return [];
     }
 
     try {
-        const issues = JSON.parse(resultStr) as AuditIssue[];
+        const parsed = JSON.parse(resultStr);
+        // V4 在 json_object 模式下输出结构不稳定，统一兼容三种形态：
+        //   1) 裸数组 [...]（旧模型）  2) 对象包数组 {"risks":[...]}  3) 单个风险对象 {...}
+        let issues = firstArray<AuditIssue>(parsed);
+        if (!issues && parsed && typeof parsed === 'object'
+            && ('risk_level' in parsed || 'description' in parsed)) {
+            issues = [parsed as AuditIssue];
+        }
+        if (!issues) {
+            console.error('Auditor JSON 无数组负载:', resultStr);
+            return [];
+        }
         // Ensure IDs are unique
         return issues.map((issue, index) => ({ ...issue, id: `risk_${Date.now()}_${index}` }));
     } catch (e) {

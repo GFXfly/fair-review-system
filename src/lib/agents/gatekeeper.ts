@@ -1,4 +1,4 @@
-import { callLLM } from '@/lib/llm';
+import { callLLM, FLASH_MODEL } from '@/lib/llm';
 
 interface GatekeeperResult {
     needs_review: boolean;
@@ -66,7 +66,7 @@ export async function runGatekeeper(fileName: string, textSummary: string, _keyw
     ${textSummary}
     `;
 
-    const resultStr = await callLLM(systemPrompt, userPrompt, true, 'deepseek-chat');
+    const resultStr = await callLLM(systemPrompt, userPrompt, { jsonMode: true, model: FLASH_MODEL });
 
     if (!resultStr) {
         // Fallback if LLM fails

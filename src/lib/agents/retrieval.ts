@@ -10,7 +10,7 @@
  * Author: Agentic RAG Optimization
  */
 
-import { callLLM } from '@/lib/llm';
+import { callLLM, firstArray, FLASH_MODEL } from '@/lib/llm';
 import {
     searchSimilarCases,
     searchSimilarRegulations,
@@ -141,14 +141,14 @@ JSON 数组，每个元素是一个改写后的查询字符串。
         const userPrompt = `请改写以下查询：\n\n${originalQuery}`;
 
         try {
-            const result = await callLLM(systemPrompt, userPrompt, true, 'deepseek-chat');
+            const result = await callLLM(systemPrompt, userPrompt, { jsonMode: true, model: FLASH_MODEL });
             if (!result) {
                 console.warn('[RetrievalAgent] 查询重写失败，使用原始查询');
                 return [originalQuery];
             }
 
-            const rewrites = JSON.parse(result);
-            if (!Array.isArray(rewrites) || rewrites.length === 0) {
+            const rewrites = firstArray<string>(JSON.parse(result));
+            if (!rewrites || rewrites.length === 0) {
                 return [originalQuery];
             }
 

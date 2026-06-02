@@ -1,4 +1,4 @@
-import { callLLM } from '@/lib/llm';
+import { callLLM, FLASH_MODEL } from '@/lib/llm';
 import { AuditIssue } from './auditor';
 
 interface RadarAlert {
@@ -40,7 +40,7 @@ export async function runRiskRadar(fileName: string, auditorResults: AuditIssue[
     ${JSON.stringify(auditorResults, null, 2)}
     `;
 
-    const resultStr = await callLLM(systemPrompt, userPrompt, true, 'deepseek-chat');
+    const resultStr = await callLLM(systemPrompt, userPrompt, { jsonMode: true, model: FLASH_MODEL });
 
     if (!resultStr) {
         return null;

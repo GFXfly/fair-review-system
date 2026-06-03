@@ -50,6 +50,11 @@ export default function ReviewPage() {
 
     const docContainerRef = useRef<HTMLDivElement>(null);
 
+    // 原始 .docx 高保真还原（docx-preview）。docxAvailable: null=检测中 / true=有原文件用 docx-preview / false=回退 mammoth。
+    const docxRef = useRef<HTMLDivElement>(null);
+    const docxBlobRef = useRef<Blob | null>(null);
+    const [docxAvailable, setDocxAvailable] = useState<boolean | null>(null);
+
     useEffect(() => {
         const container = docContainerRef.current;
         if (!container) return;
@@ -245,6 +250,40 @@ export default function ReviewPage() {
         setTimeout(() => scrollToHighlight(), 150);
     }, [activeRiskId, risks]);
 
+    // 检测并拉取原始 .docx（旧记录/非docx 会 404 → 回退 mammoth 渲染）
+    useEffect(() => {
+        const reviewId = realReviewId || (id && id !== 'temp' ? id : null);
+        if (!reviewId) { setDocxAvailable(false); return; }
+        let cancelled = false;
+        fetch(`/api/reviews/${reviewId}/file`)
+            .then(res => { if (!res.ok) throw new Error('no original file'); return res.blob(); })
+            .then(blob => { if (!cancelled) { docxBlobRef.current = blob; setDocxAvailable(true); } })
+            .catch(() => { if (!cancelled) setDocxAvailable(false); });
+        return () => { cancelled = true; };
+    }, [realReviewId, id]);
+
+    // 用 docx-preview 渲染原始 docx（动态 import 避免 SSR；失败回退 mammoth）
+    useEffect(() => {
+        if (docxAvailable !== true || !docxRef.current || !docxBlobRef.current) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { renderAsync } = await import('docx-preview');
+                if (cancelled || !docxRef.current) return;
+                docxRef.current.innerHTML = '';
+                await renderAsync(docxBlobRef.current!, docxRef.current, undefined, {
+                    inWrapper: false,
+                    ignoreHeight: true,
+                    ignoreWidth: false,
+                });
+            } catch (e) {
+                console.error('docx-preview 渲染失败，回退 mammoth:', e);
+                if (!cancelled) setDocxAvailable(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [docxAvailable]);
+
     const handleRiskClick = (riskId: string) => {
         setActiveRiskId(riskId);
         setActiveTab('risks');
@@ -321,8 +360,11 @@ export default function ReviewPage() {
             <div className={styles.main}>
                 <div className={styles.docPanel} ref={docContainerRef}>
                     <div className={styles.docPaper}>
-                        {docContent.length === 0 && <div style={{ padding: '20px', color: '#999' }}>文档内容为空或正在加载...</div>}
-                        {docContent.map(para => {
+                        {docxAvailable === true && (
+                            <div ref={docxRef} className={styles.htmlContent} data-html-content="true" />
+                        )}
+                        {docxAvailable !== true && docContent.length === 0 && <div style={{ padding: '20px', color: '#999' }}>文档内容为空或正在加载...</div>}
+                        {docxAvailable !== true && docContent.map(para => {
                             const linkedRisks = risks.filter(r => r.paragraphIds && r.paragraphIds.includes(para.id));
                             const hasRisk = linkedRisks.length > 0;
                             const isActive = activeRiskId && activeRisk?.paragraphIds?.includes(para.id);

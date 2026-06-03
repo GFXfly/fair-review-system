@@ -11,6 +11,8 @@ import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
 import { getCurrentUser, requireAuth } from '@/lib/auth';
 import { applyRateLimit, llmAnalysisRateLimiter, getClientId } from '@/lib/rate-limit';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 // ⚡ Next.js API Route Timeout Configuration
 export const maxDuration = 300; // 300秒 = 5分钟
@@ -338,6 +340,22 @@ export async function POST(req: NextRequest) {
         });
 
         console.log(`[Analyze] Created processing record: ${record.id} for ${fileName}`);
+
+        // 存原始 docx 供前端 docx-preview 高保真还原（仅 docx/wps；失败不阻断审查）。
+        // data 目录是持久化挂载卷，与数据库同位置。
+        const lowerName = fileName.toLowerCase();
+        if (lowerName.endsWith('.docx') || lowerName.endsWith('.wps')) {
+            try {
+                const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+                await mkdir(uploadsDir, { recursive: true });
+                await writeFile(
+                    path.join(uploadsDir, `${record.id}.docx`),
+                    Buffer.from(await file.arrayBuffer())
+                );
+            } catch (e) {
+                console.error('[Analyze] 存储原始文档失败（不影响审查）:', e);
+            }
+        }
 
         // Get client IP for logging
         const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';

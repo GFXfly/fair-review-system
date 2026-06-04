@@ -570,35 +570,49 @@ export async function runAuditor(category: string, text: string, guidance: strin
     ${truncatedText}
     `;
 
-    // 核心审查：质量命门，用 V4 Pro + 思考模式（effort high）
-    const resultStr = await callLLM(systemPrompt, userPrompt, {
-        jsonMode: true,
-        model: PRO_MODEL,
-        thinking: true,
-        effort: 'high',
-    });
+    // 把"解析返回"独立出来。返回 null 表示"调用/解析异常"（应重试）；
+    // 返回数组（含空数组）表示有效结果——空数组是模型判定"无风险"，不重试。
+    // V4 在 json_object 模式下输出结构不稳定，兼容三种形态：
+    //   1) 裸数组 [...]（旧模型）  2) 对象包数组 {"risks":[...]}  3) 单个风险对象 {...}
+    const parseAuditorResponse = (resultStr: string | null): AuditIssue[] | null => {
+        if (!resultStr) return null; // 空 content：V4 thinking 偶发抽风，触发重试
+        try {
+            const parsed = JSON.parse(resultStr);
+            let issues = firstArray<AuditIssue>(parsed);
+            if (!issues && parsed && typeof parsed === 'object'
+                && ('risk_level' in parsed || 'description' in parsed)) {
+                issues = [parsed as AuditIssue];
+            }
+            return issues; // null=无数组负载（异常，重试）；[]或[...]=有效结果
+        } catch {
+            return null; // JSON 解析失败：异常，触发重试
+        }
+    };
 
-    if (!resultStr) {
+    // 核心审查：质量命门，用 V4 Pro + 思考模式（effort high）。
+    // V4 thinking 偶发返回空 content / 无效结构（表现为整篇 0 风险且不报错、极难发现），
+    // 这里对"调用/解析异常"自动重试，避免偶发抽风导致漏审。
+    const MAX_AUDITOR_ATTEMPTS = 3; // 1 次正常 + 最多 2 次重试
+    let issues: AuditIssue[] | null = null;
+    for (let attempt = 1; attempt <= MAX_AUDITOR_ATTEMPTS; attempt++) {
+        const resultStr = await callLLM(systemPrompt, userPrompt, {
+            jsonMode: true,
+            model: PRO_MODEL,
+            thinking: true,
+            effort: 'high',
+        });
+        issues = parseAuditorResponse(resultStr);
+        if (issues !== null) break; // 拿到有效结果（含真·空数组），停止
+        console.warn(`[Auditor] 第 ${attempt}/${MAX_AUDITOR_ATTEMPTS} 次返回空或无效结构，` +
+            (attempt < MAX_AUDITOR_ATTEMPTS ? '重试...' : '放弃。'));
+        if (resultStr) console.warn('[Auditor] 无效返回片段:', resultStr.slice(0, 200));
+    }
+
+    if (issues === null) {
+        console.error('[Auditor] 多次重试仍未获得有效结果，返回空。');
         return [];
     }
 
-    try {
-        const parsed = JSON.parse(resultStr);
-        // V4 在 json_object 模式下输出结构不稳定，统一兼容三种形态：
-        //   1) 裸数组 [...]（旧模型）  2) 对象包数组 {"risks":[...]}  3) 单个风险对象 {...}
-        let issues = firstArray<AuditIssue>(parsed);
-        if (!issues && parsed && typeof parsed === 'object'
-            && ('risk_level' in parsed || 'description' in parsed)) {
-            issues = [parsed as AuditIssue];
-        }
-        if (!issues) {
-            console.error('Auditor JSON 无数组负载:', resultStr);
-            return [];
-        }
-        // Ensure IDs are unique
-        return issues.map((issue, index) => ({ ...issue, id: `risk_${Date.now()}_${index}` }));
-    } catch (e) {
-        console.error('Failed to parse Auditor JSON:', resultStr);
-        return [];
-    }
+    // Ensure IDs are unique
+    return issues.map((issue, index) => ({ ...issue, id: `risk_${Date.now()}_${index}` }));
 }

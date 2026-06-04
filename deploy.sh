@@ -27,6 +27,15 @@ echo "prisma/dev.db" >> .deployignore
 echo "models/*" >> .deployignore
 echo "*.zip" >> .deployignore
 echo "dist_intranet/*" >> .deployignore
+# 运行时用不到的源数据/备份文件，避免打包上传堆积在服务器（保留 .env —— 它是容器 API key 来源）
+echo "*.docx" >> .deployignore
+echo "*.doc" >> .deployignore
+echo "*.pdf" >> .deployignore
+echo "*.xlsx" >> .deployignore
+echo "*.html" >> .deployignore
+echo ".env.backup" >> .deployignore
+echo ".env.local.backup" >> .deployignore
+echo "prisma/*.local_backup" >> .deployignore
 
 zip -r $LOCAL_ZIP . -x@.deployignore
 rm .deployignore
@@ -71,6 +80,11 @@ ssh $SERVER_USER@$SERVER_IP << 'EOF'
     
     # Run database migration (if needed)
     docker compose up -d
+
+    # 清理本次构建产生的缓存和悬空镜像，防止多次部署累积撑爆磁盘
+    echo "🧹 Cleaning up build cache & dangling images..."
+    docker builder prune -f
+    docker image prune -f
 
     # Wait for container to be ready
     # Run the user creation script inside the container (Optional: Commented out to save time on updates)

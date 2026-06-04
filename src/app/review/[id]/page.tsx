@@ -274,7 +274,8 @@ export default function ReviewPage() {
                 await renderAsync(docxBlobRef.current!, docxRef.current, undefined, {
                     inWrapper: false,
                     ignoreHeight: true,
-                    ignoreWidth: false,
+                    ignoreWidth: true,        // 用容器宽度，避免保留 Word 页宽导致内容偏右
+                    ignoreLastRenderedPageBreak: true,
                 });
             } catch (e) {
                 console.error('docx-preview 渲染失败，回退 mammoth:', e);
@@ -504,7 +505,7 @@ export default function ReviewPage() {
                                     <RiskDetail
                                         risk={activeRisk}
                                         reviewId={realReviewId}
-                                        onBack={() => setActiveRiskId(null)}
+                                        onBack={() => { clearHighlights(); setActiveRiskId(null); }}
                                     />
                                 )}
                             </>

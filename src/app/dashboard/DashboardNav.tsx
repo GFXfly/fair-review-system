@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import styles from './page.module.css';
+import type { DashboardUser } from './types';
 
 interface DashboardNavProps {
     activeTab: string;
     onTabChange: (tab: string) => void;
-    user: any;
+    user: DashboardUser | null;
     onOpenPasswordModal: () => void;
     onLogout: () => void;
 }

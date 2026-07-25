@@ -11,6 +11,7 @@ import UploadModals from './UploadModals';
 import ChangePasswordModal from './ChangePasswordModal';
 import { useReviewSubmit } from './use-review-submit';
 import { useKnowledgeBase } from './use-knowledge-base';
+import type { DashboardUser, ReviewRecordSummary } from './types';
 
 function DashboardContent() {
     const router = useRouter();
@@ -18,8 +19,8 @@ function DashboardContent() {
     const initialTab = searchParams.get('tab') || 'workspace';
     const [activeTab, setActiveTab] = useState(initialTab); // workspace | monitor | knowledge
     const [showPasswordModal, setShowPasswordModal] = useState(false);
-    const [reviewRecords, setReviewRecords] = useState<any[]>([]);
-    const [user, setUser] = useState<any>(null);
+    const [reviewRecords, setReviewRecords] = useState<ReviewRecordSummary[]>([]);
+    const [user, setUser] = useState<DashboardUser | null>(null);
 
     // 上传/审查与知识库的状态都留在本组件：tab 切换是条件渲染，
     // 放进子组件会在离开 tab 时被卸载，进行中的审查和搜索词都会丢。
@@ -79,25 +80,7 @@ function DashboardContent() {
         }
     }, [activeTab]);
 
-    const formatAction = (action: string) => {
-        const map: Record<string, string> = {
-            'login': '用户登录',
-            'login_failed': '登录失败',
-            'logout': '用户登出',
-            'change_password': '修改密码',
-            'create_cases': '新増案例',
-            'upload_file': '上传文件',
-            'analyze_file': '智能审查',
-            'view_review': '查看结果',
-            'delete_review': '删除记录',
-            'delete_user': '删除用户',
-            'create_user': '创建用户',
-            'access_denied': '访问拒绝'
-        };
-        return map[action] || action;
-    };
-
-    const handleViewRecord = (record: any) => {
+    const handleViewRecord = (record: ReviewRecordSummary) => {
         if (record.status === 'ignored') {
             alert(record.summary);
         } else {

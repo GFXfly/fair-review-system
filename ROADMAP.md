@@ -30,6 +30,7 @@
 - **移除仪表盘假预警数据**（2026-07-25）：「🚨 预警消息」面板此前是硬编码的示例条目，真实用户会当成实际风险提示。改为空态，等接入真实数据源
 - **移除仪表盘调试日志**（2026-07-25）：列表加载时会把文件名和用户名打印到浏览器控制台
 - **拆分 `src/app/dashboard/page.tsx`**（2026-07-25，构建已验证，浏览器冒烟待人工确认）：993 行拆成 10 个文件，主文件降至 202 行。上传/审查与知识库状态抽成 `use-review-submit.ts`、`use-knowledge-base.ts` 两个 hook，**仍在 `page.tsx` 中调用**，以保证 tab 切换时进行中的审查不被打断（这是拆分中唯一的行为风险点）。`page.module.css` 未改动
+- **补齐 dashboard 类型定义并删除死代码**（2026-07-25）：新增 `dashboard/types.ts`（`DashboardUser` / `ReviewRecordSummary` / `KnowledgeItem`，字段以各 API 路由实际的 `select` 为准），替换该目录全部业务 `any`；删除零引用的 `formatAction`
 
 ---
 
@@ -48,12 +49,11 @@
 - 收敛 26 处原生 `alert()` 为统一提示组件（`felixgao/page.tsx` 14 处、`dashboard/page.tsx` 8 处、其余 4 处）。
 
 **低**
-- 内联 `style={{}}` 与 CSS Modules 混用（如 `dashboard/page.tsx` 状态标签）。不影响正确性，建议跟随 dashboard 拆分一并收敛。
-- `dashboard/page.tsx:227` 的 `useEffect` 依赖数组不完整（只写了 `[activeTab]`，body 内使用了 `searchQuery`）。当前因有独立的 `handleSearch` 按钮兜底，行为正确，ESLint `exhaustive-deps` 会报警。
-- 死代码：`dashboard/page.tsx` 的 `formatAction`（约 17 行）全项目零引用。**保留**，等确认确实无用后再由维护者删除。
+- 内联 `style={{}}` 与 CSS Modules 混用（散落在 `dashboard/` 各组件与 `felixgao/`）。不影响正确性。
+- `dashboard/use-knowledge-base.ts` 里按 `[activeTab]` 触发的 `useEffect` 依赖数组不完整（body 内使用了 `searchQuery`）。当前因有独立的 `handleSearch` 按钮兜底，行为正确，ESLint `exhaustive-deps` 会报警。
 
 **明确不做**
-- 前端 `any` 类型仅 13 处且集中在 `dashboard/page.tsx`，随拆分顺手补类型，不单独立项。
+- `dashboard/use-review-submit.ts` 里两处 `catch (e: any)`：TypeScript 的 catch 绑定只能是 `any` 或 `unknown`，而代码要读 `error.message` / `error.suggestion`。改成 `unknown` 需要加类型守卫，收益不抵改动风险。
 - `src/app/review/[id]/` 与 `src/components/` 结构健康，不重构。
 
 ---

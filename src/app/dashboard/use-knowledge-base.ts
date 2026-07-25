@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import type { KnowledgeItem } from './types';
 
 export const ITEMS_PER_PAGE = 20;
 
@@ -14,11 +15,11 @@ export const ITEMS_PER_PAGE = 20;
 export function useKnowledgeBase(activeTab: string) {
     const router = useRouter();
 
-    const [regulations, setRegulations] = useState<any[]>([]);
-    const [cases, setCases] = useState<any[]>([]);
+    const [regulations, setRegulations] = useState<KnowledgeItem[]>([]);
+    const [cases, setCases] = useState<KnowledgeItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
 
     const [regPage, setRegPage] = useState(1);
     const [casePage, setCasePage] = useState(1);
@@ -59,7 +60,7 @@ export function useKnowledgeBase(activeTab: string) {
         fetchKnowledge(searchQuery);
     };
 
-    const handleItemClick = async (item: any) => {
+    const handleItemClick = async (item: KnowledgeItem) => {
         // Identify if the item is a Case based on specific fields or active tab
         const isCase = activeTab === 'cases' || item.violationType || item.result;
 

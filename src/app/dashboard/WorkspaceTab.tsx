@@ -3,6 +3,7 @@
 import React from 'react';
 import styles from './page.module.css';
 import FileUpload from '@/components/FileUpload';
+import type { DashboardUser, ReviewRecordSummary } from './types';
 
 interface WorkspaceTabProps {
     pendingFile: File | null;
@@ -13,9 +14,9 @@ interface WorkspaceTabProps {
     onFileSelect: (file: File) => void;
     onRemoveFile: () => void;
     onStartReview: () => void;
-    reviewRecords: any[];
-    user: any;
-    onViewRecord: (record: any) => void;
+    reviewRecords: ReviewRecordSummary[];
+    user: DashboardUser | null;
+    onViewRecord: (record: ReviewRecordSummary) => void;
     onViewLedger: () => void;
 }
 
@@ -135,7 +136,7 @@ export default function WorkspaceTab({
                                 </td>
                             </tr>
                         ) : (
-                            reviewRecords.map((record: any) => (
+                            reviewRecords.map((record) => (
                                 <tr key={record.id}>
                                     <td>
                                         {record.status === 'completed' && <span style={{ color: '#10b981', background: '#d1fae5', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>已完成</span>}

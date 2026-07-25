@@ -4,17 +4,18 @@ import React from 'react';
 import styles from './page.module.css';
 import Pagination from './Pagination';
 import { ITEMS_PER_PAGE } from './use-knowledge-base';
+import type { KnowledgeItem } from './types';
 
 interface KnowledgeTabProps {
     kind: 'regulations' | 'cases';
-    items: any[];
+    items: KnowledgeItem[];
     page: number;
     onPageChange: (p: number) => void;
     isLoading: boolean;
     searchQuery: string;
     onSearchQueryChange: (q: string) => void;
     onSearch: () => void;
-    onItemClick: (item: any) => void;
+    onItemClick: (item: KnowledgeItem) => void;
 }
 
 export default function KnowledgeTab({

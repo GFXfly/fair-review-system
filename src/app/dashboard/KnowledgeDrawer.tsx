@@ -3,9 +3,10 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import styles from './page.module.css';
+import type { KnowledgeItem } from './types';
 
 interface KnowledgeDrawerProps {
-    item: any;
+    item: KnowledgeItem;
     onClose: () => void;
 }
 

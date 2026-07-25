@@ -29,6 +29,7 @@
 - **项目规范补齐**（2026-07-25）：新增 `CLAUDE.md`、`ROADMAP.md`
 - **移除仪表盘假预警数据**（2026-07-25）：「🚨 预警消息」面板此前是硬编码的示例条目，真实用户会当成实际风险提示。改为空态，等接入真实数据源
 - **移除仪表盘调试日志**（2026-07-25）：列表加载时会把文件名和用户名打印到浏览器控制台
+- **拆分 `src/app/dashboard/page.tsx`**（2026-07-25，构建已验证，浏览器冒烟待人工确认）：993 行拆成 10 个文件，主文件降至 202 行。上传/审查与知识库状态抽成 `use-review-submit.ts`、`use-knowledge-base.ts` 两个 hook，**仍在 `page.tsx` 中调用**，以保证 tab 切换时进行中的审查不被打断（这是拆分中唯一的行为风险点）。`page.module.css` 未改动
 
 ---
 
@@ -41,9 +42,6 @@
 ## 待办
 
 以下条目来自 2026-07-25 的前端代码审查，按优先级排列。
-
-**高**
-- 拆分 `src/app/dashboard/page.tsx`（1003 行 / 22 个 `useState` / 5 个 `useEffect`）。三个 tab（workspace / regulations / cases）的状态与 JSX 完全交织在一个函数体里，是全项目唯一真正难维护的文件。拆成三个 tab 子组件后主文件可降到 200 行内。属跨文件改动，动手前先出方案。
 
 **中**
 - 知识库改服务端分页。`/api/regulations` 与 `/api/cases` 目前把全量数据返回前端再 `slice()` 分页（`dashboard/page.tsx:719`、`:792`）。与 2026-07-25 修掉的 reviews 全文问题同源，案例数继续增长会重演首屏卡顿。
@@ -81,5 +79,7 @@
 | 2026-07-25 | `npx tsc --noEmit` | ✅ 通过，无类型错误 |
 | 2026-07-25 | `npm run build`（webpack） | ✅ 通过，21 个页面 + 16 个 API 路由全部构建成功 |
 | 2026-07-25 | `npm run build`（移除假预警数据与调试日志后复验） | ✅ 通过 |
+| 2026-07-25 | `npm run build`（dashboard 拆分后复验） | ✅ `Compiled successfully`，21 个页面全部生成 |
+| — | dashboard 拆分的浏览器冒烟测试 | ⏳ **未做**，需人工在 `npm run dev` 下逐项确认，重点是「审查进行中切 tab 再切回，进度条不重置」 |
 
 > 注意：只跑 `tsc --noEmit` 不够。`next.config.ts` 里的 webpack external 配置只有完整 build 才验证得到。

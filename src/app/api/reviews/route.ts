@@ -44,8 +44,20 @@ export async function GET(req: NextRequest) {
             orderBy: {
                 createdAt: 'desc'
             },
-            include: {
-                // 优化：只查询risk数量，不加载详细数据
+            // 列表只返回元数据，排除 originalText/originalHtml 两个全文大字段
+            // （20 条记录的全文 JSON 可达数 MB，是首屏列表延迟 1-2 秒的根源）
+            select: {
+                id: true,
+                fileName: true,
+                fileSize: true,
+                status: true,
+                progress: true,
+                progressMessage: true,
+                riskCount: true,
+                summary: true,
+                createdAt: true,
+                updatedAt: true,
+                userId: true,
                 _count: {
                     select: { risks: true }
                 },

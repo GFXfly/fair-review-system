@@ -208,12 +208,6 @@ function DashboardContent() {
             const res = await fetch('/api/reviews', { cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
-                console.log(`[Dashboard] Received ${data.length} review records`);
-                console.log('[Dashboard] First 3 records:', data.slice(0, 3).map((r: any) => ({
-                    fileName: r.fileName,
-                    user: r.user?.name,
-                    status: r.status
-                })));
                 setReviewRecords(data);
             } else {
                 console.error('[Dashboard] Failed to fetch reviews. Status:', res.status);
@@ -606,16 +600,12 @@ function DashboardContent() {
                                 <h3>🚨 预警消息</h3>
                             </div>
                             <div className={styles.alertList}>
-                                {/* Passive view of system alerts pushed by admin/system */}
-                                {[
-                                    { id: 101, title: '来自管理员的风险提示', content: '你单位发布的《关于促进XX行业发展的通知》疑似包含指定交易条款，请自查。', time: '10:00' }
-                                ].map(alert => (
-                                    <div key={alert.id} style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }}>
-                                        <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px', color: '#ef4444' }}>{alert.title}</div>
-                                        <div style={{ fontSize: '13px', color: '#4b5563', marginBottom: '4px' }}>{alert.content}</div>
-                                        <div style={{ fontSize: '12px', color: '#9ca3af' }}>{alert.time}</div>
-                                    </div>
-                                ))}
+                                {/* 预警数据源尚未接入。在有真实接口之前保持空态，
+                                    不要在这里放示例数据——业务人员会当成真实风险提示。 */}
+                                <div style={{ textAlign: 'center', padding: '48px 20px', color: '#9ca3af' }}>
+                                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔔</div>
+                                    <div style={{ fontSize: '13px' }}>暂无预警消息</div>
+                                </div>
                             </div>
                         </div>
                         {/* Bottom: The "History" - Recent Reviews */}

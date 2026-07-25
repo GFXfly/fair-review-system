@@ -27,18 +27,36 @@
 - 内网离线部署链路：`deploy.sh`、`scripts/export_intranet.sh`、`shencha_nginx.conf`
 - **审查列表接口性能优化**（2026-07-25 验证并提交）：`GET /api/reviews` 改用 `select` 白名单，排除 `originalText` / `originalHtml` 两个全文大字段，消除首屏 1–2 秒延迟
 - **项目规范补齐**（2026-07-25）：新增 `CLAUDE.md`、`ROADMAP.md`
+- **移除仪表盘假预警数据**（2026-07-25）：「🚨 预警消息」面板此前是硬编码的示例条目，真实用户会当成实际风险提示。改为空态，等接入真实数据源
+- **移除仪表盘调试日志**（2026-07-25）：列表加载时会把文件名和用户名打印到浏览器控制台
 
 ---
 
 ## 进行中
 
-无。上一处未提交改动已于 2026-07-25 验证并合入。
+无。
 
 ---
 
 ## 待办
 
-（待确认——此前的待办事项没有书面记录，需要补齐后填入。）
+以下条目来自 2026-07-25 的前端代码审查，按优先级排列。
+
+**高**
+- 拆分 `src/app/dashboard/page.tsx`（1003 行 / 22 个 `useState` / 5 个 `useEffect`）。三个 tab（workspace / regulations / cases）的状态与 JSX 完全交织在一个函数体里，是全项目唯一真正难维护的文件。拆成三个 tab 子组件后主文件可降到 200 行内。属跨文件改动，动手前先出方案。
+
+**中**
+- 知识库改服务端分页。`/api/regulations` 与 `/api/cases` 目前把全量数据返回前端再 `slice()` 分页（`dashboard/page.tsx:719`、`:792`）。与 2026-07-25 修掉的 reviews 全文问题同源，案例数继续增长会重演首屏卡顿。
+- 收敛 26 处原生 `alert()` 为统一提示组件（`felixgao/page.tsx` 14 处、`dashboard/page.tsx` 8 处、其余 4 处）。
+
+**低**
+- 内联 `style={{}}` 与 CSS Modules 混用（如 `dashboard/page.tsx` 状态标签）。不影响正确性，建议跟随 dashboard 拆分一并收敛。
+- `dashboard/page.tsx:227` 的 `useEffect` 依赖数组不完整（只写了 `[activeTab]`，body 内使用了 `searchQuery`）。当前因有独立的 `handleSearch` 按钮兜底，行为正确，ESLint `exhaustive-deps` 会报警。
+- 死代码：`dashboard/page.tsx` 的 `formatAction`（约 17 行）全项目零引用。**保留**，等确认确实无用后再由维护者删除。
+
+**明确不做**
+- 前端 `any` 类型仅 13 处且集中在 `dashboard/page.tsx`，随拆分顺手补类型，不单独立项。
+- `src/app/review/[id]/` 与 `src/components/` 结构健康，不重构。
 
 ---
 
@@ -62,5 +80,6 @@
 |---|---|---|
 | 2026-07-25 | `npx tsc --noEmit` | ✅ 通过，无类型错误 |
 | 2026-07-25 | `npm run build`（webpack） | ✅ 通过，21 个页面 + 16 个 API 路由全部构建成功 |
+| 2026-07-25 | `npm run build`（移除假预警数据与调试日志后复验） | ✅ 通过 |
 
 > 注意：只跑 `tsc --noEmit` 不够。`next.config.ts` 里的 webpack external 配置只有完整 build 才验证得到。

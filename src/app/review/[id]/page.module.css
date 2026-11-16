@@ -792,6 +792,61 @@
     white-space: pre-wrap;
 }
 
+/* ---------- 管理员专属：内部参考口径溯源卡片 ---------- */
+.internalCaliberCard {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--bg-subtle);
+    border: 1px dashed var(--line-strong);
+    border-left: 3px solid var(--brand);
+    border-radius: var(--radius-md);
+}
+
+.internalCaliberHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.internalCaliberTitle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--brand-strong);
+    letter-spacing: 0.02em;
+}
+
+.internalCaliberTag {
+    height: 20px;
+    padding: 0 7px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.internalCaliberBody {
+    font-family: var(--font-serif);
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--ink-1);
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 9px 11px;
+    word-break: break-word;
+}
+
+.internalCaliberNote {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ink-3);
+}
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 1280px) {
     .docPanel {

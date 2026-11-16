@@ -1,4 +1,5 @@
 // src/app/review/[id]/export-utils.ts
+import { sanitizePublicText } from '@/lib/caliber-sanitizer';
 
 export type RiskLevel = 'high' | 'medium' | 'low';
 
@@ -16,6 +17,7 @@ export interface RiskItem {
     defense?: string | null;
     rulingReason?: string | null;
     confidence?: number | null;
+    internalCaliber?: string | null;
 }
 
 const LEVEL_LABEL: Record<RiskLevel, string> = { high: '高', medium: '中', low: '低' };
@@ -59,7 +61,7 @@ export const exportReviewReport = async (
                 }),
                 new TableCell({
                     children: [
-                        new Paragraph({ children: [new TextRun({ text: risk.title, bold: true })] }),
+                        new Paragraph({ children: [new TextRun({ text: sanitizePublicText(risk.title, '合规风险'), bold: true })] }),
                         new Paragraph({
                             children: [new TextRun({
                                 text: `风险等级: ${LEVEL_LABEL[risk.level] ?? '中'}`,
@@ -72,16 +74,16 @@ export const exportReviewReport = async (
                 new TableCell({
                     children: [
                         new Paragraph({ children: [new TextRun({ text: '【原文条款引用】', bold: true })] }),
-                        new Paragraph({ text: risk.snippet || '（详见文书对应位置）' }),
+                        new Paragraph({ text: sanitizePublicText(risk.snippet, '（详见文书对应位置）') }),
                         new Paragraph({ text: '' }),
                         new Paragraph({ children: [new TextRun({ text: '【违规风险分析】', bold: true })] }),
-                        new Paragraph({ text: risk.reason }),
+                        new Paragraph({ text: sanitizePublicText(risk.reason) }),
                         new Paragraph({ text: '' }),
                         new Paragraph({ children: [new TextRun({ text: '【违反法规依据】', bold: true })] }),
-                        new Paragraph({ text: risk.law || '《公平竞争审查条例》及相关招投标细则' }),
+                        new Paragraph({ text: sanitizePublicText(risk.law, '《公平竞争审查条例》及相关招投标细则') }),
                         new Paragraph({ text: '' }),
                         new Paragraph({ children: [new TextRun({ text: '【修改完善建议】', bold: true })] }),
-                        new Paragraph({ text: risk.suggestion || '建议删除或调整上述限制性表述' }),
+                        new Paragraph({ text: sanitizePublicText(risk.suggestion, '建议删除或调整上述限制性表述') }),
                     ],
                     width: { size: 55, type: WidthType.PERCENTAGE },
                 }),
@@ -125,7 +127,7 @@ export const exportReviewReport = async (
                     spacing: { after: 400 },
                 }),
                 new Paragraph({ text: '二、文件摘要', heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 200 } }),
-                new Paragraph({ text: summary, spacing: { after: 400 } }),
+                new Paragraph({ text: sanitizePublicText(summary), spacing: { after: 400 } }),
                 new Paragraph({ text: '三、风险点详细分析', heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 200 } }),
                 risks.length > 0
                     ? new Table({ rows: [headerRow, ...riskRows], width: { size: 100, type: WidthType.PERCENTAGE }, borders: tableBorders })

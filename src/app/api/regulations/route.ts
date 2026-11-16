@@ -1,41 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, handleAuthError } from '@/lib/auth';
+import { isInternalCaliberRegulation, PUBLIC_REGULATION_WHERE } from '@/lib/caliber-sanitizer';
 
 export async function GET(request: NextRequest) {
     try {
-        await requireAuth(request);
+        const user = await requireAuth(request);
+        const isAdmin = user.role === 'admin';
         const { searchParams } = new URL(request.url);
         const query = searchParams.get('q');
         const category = searchParams.get('category');
         const id = searchParams.get('id');
 
         if (id) {
+            const parsedId = parseInt(id, 10);
+            if (!/^\d+$/.test(id.trim()) || !Number.isSafeInteger(parsedId) || parsedId <= 0) {
+                return NextResponse.json({ error: '无效的法规 ID' }, { status: 400 });
+            }
+
             const regulation = await prisma.regulation.findUnique({
-                where: { id: parseInt(id) }
+                where: { id: parsedId }
             });
+            if (!regulation) {
+                return NextResponse.json({ error: '法规不存在' }, { status: 404 });
+            }
+
+            if (!isAdmin && isInternalCaliberRegulation(regulation)) {
+                return NextResponse.json(
+                    { error: '该内部业务口径仅限管理员查阅' },
+                    { status: 403 }
+                );
+            }
+
             return NextResponse.json(regulation);
         }
 
-        const where: any = {};
+        let where: any = {};
 
-        if (query) {
-            where.OR = [
-                { title: { contains: query } },
-                { content: { contains: query } },
-            ];
-        }
+        if (!isAdmin) {
+            const andConditions: any[] = [PUBLIC_REGULATION_WHERE];
+            if (query) {
+                andConditions.push({
+                    OR: [
+                        { title: { contains: query } },
+                        { content: { contains: query } },
+                    ],
+                });
+            }
+            if (category && category !== '全部') {
+                andConditions.push({ category });
+            }
+            where = andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
+        } else {
+            if (query) {
+                where.OR = [
+                    { title: { contains: query } },
+                    { content: { contains: query } },
+                ];
+            }
 
-        // If no search query, hide the atomic fragments to keep list clean
-        if (!query) {
-            where.category = {
-                not: 'QA_Fragment'
-            };
-        }
+            // If no search query, hide the atomic fragments to keep list clean
+            if (!query) {
+                where.category = {
+                    not: 'QA_Fragment'
+                };
+            }
 
-        // If specific category selected (overrides the above if needed, but usually 'category' filter is from UI tab)
-        if (category && category !== '全部') {
-            where.category = category;
+            // If specific category selected (overrides the above if needed, but usually 'category' filter is from UI tab)
+            if (category && category !== '全部') {
+                where.category = category;
+            }
         }
 
         const regulations = await prisma.regulation.findMany({

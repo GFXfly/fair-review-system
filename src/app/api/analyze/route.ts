@@ -11,6 +11,7 @@ import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
 import { getCurrentUser, requireAuth } from '@/lib/auth';
 import { applyRateLimit, llmAnalysisRateLimiter, getClientId } from '@/lib/rate-limit';
+import { encodeRelatedCaseWithCaliber, extractInternalCaliberFromText, sanitizePublicText } from '@/lib/caliber-sanitizer';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
@@ -236,19 +237,24 @@ async function processAnalysisAsync(
                 originalHtml: html,
                 riskCount: finalRisks.length,
                 risks: {
-                    create: finalRisks.map(r => ({
-                        level: r.risk_level,
-                        type: '合规风险',
-                        title: r.description.substring(0, 50),
-                        description: r.description,
-                        location: r.location,
-                        suggestion: r.suggestion,
-                        law: r.violated_law,
-                        relatedCase: r.reference,
-                        defense: r.defense || null,
-                        rulingReason: r.rulingReason || null,
-                        confidence: r.confidence || null
-                    }))
+                    create: finalRisks.map(r => {
+                        const cleanDesc = sanitizePublicText(r.description);
+                        const caliberRef = r.internal_caliber_ref?.trim()
+                            || extractInternalCaliberFromText(r.reference, r.violated_law, r.description, r.rulingReason);
+                        return {
+                            level: r.risk_level,
+                            type: '合规风险',
+                            title: cleanDesc.substring(0, 50),
+                            description: cleanDesc,
+                            location: sanitizePublicText(r.location),
+                            suggestion: sanitizePublicText(r.suggestion),
+                            law: sanitizePublicText(r.violated_law, '《公平竞争审查条例》及相关招投标公平竞争审查规定'),
+                            relatedCase: encodeRelatedCaseWithCaliber(r.reference, caliberRef),
+                            defense: r.defense ? sanitizePublicText(r.defense) || null : null,
+                            rulingReason: r.rulingReason ? sanitizePublicText(r.rulingReason) || null : null,
+                            confidence: r.confidence || null
+                        };
+                    })
                 }
             }
         });

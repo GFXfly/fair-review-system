@@ -9,6 +9,7 @@ import KnowledgeTab from './KnowledgeTab';
 import KnowledgeDrawer from './KnowledgeDrawer';
 import UploadModals from './UploadModals';
 import ChangePasswordModal from './ChangePasswordModal';
+import IgnoredNoticeModal, { type NoticeModalState } from '@/components/ui/IgnoredNoticeModal';
 import { useReviewSubmit } from './use-review-submit';
 import { useKnowledgeBase } from './use-knowledge-base';
 import type { DashboardUser, ReviewRecordSummary } from './types';
@@ -21,10 +22,30 @@ function DashboardContent() {
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [reviewRecords, setReviewRecords] = useState<ReviewRecordSummary[]>([]);
     const [user, setUser] = useState<DashboardUser | null>(null);
+    const [recordNoticeModal, setRecordNoticeModal] = useState<NoticeModalState>({
+        open: false,
+        mode: 'ignored',
+    });
+
+    const fetchReviewRecords = async () => {
+        try {
+            // 范围由后端按 session 的 role 自动决定（admin 看全部 / 普通看自己），
+            // 因此无需等待前端 user 状态，可与鉴权请求并行，消除首屏串行延迟。
+            const res = await fetch('/api/reviews', { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                setReviewRecords(data);
+            } else {
+                console.error('[Dashboard] Failed to fetch reviews. Status:', res.status);
+            }
+        } catch (error) {
+            console.error('Failed to fetch review records:', error);
+        }
+    };
 
     // 上传/审查与知识库的状态都留在本组件：tab 切换是条件渲染，
     // 放进子组件会在离开 tab 时被卸载，进行中的审查和搜索词都会丢。
-    const review = useReviewSubmit();
+    const review = useReviewSubmit({ onRefreshRecords: fetchReviewRecords });
     const knowledge = useKnowledgeBase(activeTab);
 
     // Sync activeTab with URL params if they change
@@ -58,22 +79,6 @@ function DashboardContent() {
         router.push('/');
     };
 
-    const fetchReviewRecords = async () => {
-        try {
-            // 范围由后端按 session 的 role 自动决定（admin 看全部 / 普通看自己），
-            // 因此无需等待前端 user 状态，可与鉴权请求并行，消除首屏串行延迟。
-            const res = await fetch('/api/reviews', { cache: 'no-store' });
-            if (res.ok) {
-                const data = await res.json();
-                setReviewRecords(data);
-            } else {
-                console.error('[Dashboard] Failed to fetch reviews. Status:', res.status);
-            }
-        } catch (error) {
-            console.error('Failed to fetch review records:', error);
-        }
-    };
-
     useEffect(() => {
         if (activeTab === 'workspace') {
             fetchReviewRecords();
@@ -82,7 +87,13 @@ function DashboardContent() {
 
     const handleViewRecord = (record: ReviewRecordSummary) => {
         if (record.status === 'ignored') {
-            alert(record.summary);
+            setRecordNoticeModal({
+                open: true,
+                mode: 'ignored',
+                fileName: record.fileName,
+                message: record.summary,
+                recordId: record.id,
+            });
         } else {
             router.push(`/review/${record.id}`);
         }
@@ -172,6 +183,26 @@ function DashboardContent() {
                     onClose={() => knowledge.setSelectedItem(null)}
                 />
             )}
+
+            <IgnoredNoticeModal
+                open={review.noticeModal.open}
+                mode={review.noticeModal.mode}
+                fileName={review.noticeModal.fileName}
+                message={review.noticeModal.message}
+                suggestion={review.noticeModal.suggestion}
+                recordId={review.noticeModal.recordId}
+                onClose={review.closeNoticeModal}
+            />
+
+            <IgnoredNoticeModal
+                open={recordNoticeModal.open}
+                mode={recordNoticeModal.mode}
+                fileName={recordNoticeModal.fileName}
+                message={recordNoticeModal.message}
+                suggestion={recordNoticeModal.suggestion}
+                recordId={recordNoticeModal.recordId}
+                onClose={() => setRecordNoticeModal(prev => ({ ...prev, open: false }))}
+            />
         </div>
     );
 }

@@ -1,0 +1,68 @@
+.iconOk {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.fileRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: var(--bg-hover);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+}
+
+.fileMeta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--ink-1);
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.fileIcon {
+    display: inline-flex;
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.fileName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reasonCard {
+    padding: 14px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--brand-line);
+    border-radius: var(--radius-md);
+}
+
+.reasonLabel {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+}
+
+.reasonText {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--ink-2);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.suggestionCard {
+    margin-top: 10px;
+}

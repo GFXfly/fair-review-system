@@ -88,31 +88,23 @@
     flex-direction: column;
     justify-content: center;
     max-width: 560px;
-    padding: 56px 0 40px;
+    padding: 64px 0 48px;
 }
 
-.coverEyebrow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 22px;
-    font-size: 12.5px;
-    letter-spacing: 0.32em;
-    color: rgba(233, 239, 236, 0.66);
-}
-
-.coverEyebrowLine {
-    width: 28px;
-    height: 1px;
+.coverAccentLine {
+    display: block;
+    width: 32px;
+    height: 2px;
+    margin-bottom: 24px;
     background: #D9775F;
 }
 
 .coverTitle {
     margin: 0;
     font-family: var(--font-serif);
-    font-size: clamp(34px, 3.6vw, 50px);
+    font-size: clamp(36px, 3.8vw, 52px);
     font-weight: 900;
-    line-height: 1.28;
+    line-height: 1.3;
     letter-spacing: 0.06em;
     color: #FAFBFA;
 }
@@ -128,50 +120,46 @@
 
 .coverLead {
     margin: 22px 0 0;
-    max-width: 30em;
-    font-size: 14.5px;
-    line-height: 1.9;
-    color: rgba(233, 239, 236, 0.72);
+    font-size: 15px;
+    line-height: 1.8;
+    color: rgba(233, 239, 236, 0.76);
 }
 
-.capList {
-    margin: 40px 0 0;
-    padding: 0;
-    list-style: none;
-    border-top: 1px solid rgba(233, 239, 236, 0.12);
+.capStrip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(233, 239, 236, 0.14);
 }
 
-.capItem {
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr);
-    gap: 12px;
-    padding: 18px 0;
-    border-bottom: 1px solid rgba(233, 239, 236, 0.12);
+.capPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    border: 1px solid rgba(233, 239, 236, 0.18);
+    border-radius: 999px;
+    background: rgba(233, 239, 236, 0.05);
+    font-size: 12.5px;
+    color: rgba(233, 239, 236, 0.86);
+    letter-spacing: 0.02em;
 }
 
-.capNo {
-    padding-top: 1px;
+.capPillNo {
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: 11.5px;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.06em;
     color: #E59A86;
 }
 
-.capText h3 {
-    margin: 0 0 5px;
-    font-family: var(--font-serif);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: #F4F7F5;
-}
-
-.capText p {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.75;
-    color: rgba(233, 239, 236, 0.6);
+.capDot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(233, 239, 236, 0.35);
 }
 
 .coverFoot {
@@ -580,16 +568,9 @@
         font-size: 30px;
     }
 
-    .capList {
+    .capStrip {
         margin-top: 24px;
-    }
-
-    .capItem {
-        padding: 12px 0;
-    }
-
-    .capText p {
-        display: none;
+        padding-top: 18px;
     }
 
     .formSide {

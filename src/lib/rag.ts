@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getEmbedding } from './llm';
+import { isInternalCaliberRegulation, PUBLIC_REGULATION_WHERE } from './caliber-sanitizer';
 
 // ==========================================
 // In-memory embedding cache
@@ -89,12 +90,15 @@ async function loadRegCache(): Promise<CachedRegulation[]> {
             id: true,
             title: true,
             content: true,
+            category: true,
+            level: true,
             embedding: true,
         },
     });
 
     const parsed: CachedRegulation[] = [];
     for (const r of rows) {
+        if (isInternalCaliberRegulation(r)) continue;
         try {
             const arr = JSON.parse(r.embedding!);
             if (Array.isArray(arr) && arr.length > 0) {
@@ -304,9 +308,14 @@ export async function searchSimilarRegulations(
     if (!qEmbed) {
         const results = await prisma.regulation.findMany({
             where: {
-                OR: [
-                    { title: { contains: query } },
-                    { content: { contains: query } }
+                AND: [
+                    PUBLIC_REGULATION_WHERE,
+                    {
+                        OR: [
+                            { title: { contains: query } },
+                            { content: { contains: query } }
+                        ]
+                    }
                 ]
             },
             take: limit

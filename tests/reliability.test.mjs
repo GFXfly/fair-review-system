@@ -138,8 +138,10 @@ async function pollScenario(terminalStatus) {
 test('failure after the first status poll clears loading and shows the error', async () => {
     const { states, alerts } = await pollScenario({ status: 'failed', progressMessage: '审查失败：模型异常' });
     assert.equal(states[4], false);
-    assert.equal(alerts.length, 1);
-    assert.match(alerts[0], /模型异常/);
+    assert.equal(alerts.length, 0);
+    assert.equal(states[7]?.open, true);
+    assert.equal(states[7]?.mode, 'error');
+    assert.match(states[7]?.message || '', /模型异常/);
 });
 
 test('successful later poll stores the result and navigates to the review', async () => {
@@ -192,6 +194,7 @@ test('GET /api/users enforces admin permission instead of plain login', async ()
 
 test('DELETE /api/reviews/[id] removes uploaded docx file and tolerates ENOENT', async () => {
     const unlinked = [];
+    const caliberSanitizer = load('src/lib/caliber-sanitizer.ts');
     const route = load('src/app/api/reviews/[id]/route.ts', {
         'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
         'fs/promises': {
@@ -204,6 +207,7 @@ test('DELETE /api/reviews/[id] removes uploaded docx file and tolerates ENOENT',
         },
         path,
         '@/lib/auth': { getCurrentUser: async () => ({ id: 1, role: 'user' }) },
+        '@/lib/caliber-sanitizer': caliberSanitizer,
         '@/lib/prisma': {
             prisma: {
                 reviewRecord: {

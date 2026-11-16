@@ -125,12 +125,17 @@ export async function runGuidanceCounselor(text: string, category: string = ''):
 
         if (selectedQAs.length > 0) {
             // 4. Format the output
-            guidanceText += "★【总局权威答疑口径（最高优先级，必须严格执行）】：\n";
+            guidanceText += "★【内部审查实务口径参考（⚠️ 内部资料，严禁在对外字段中提及名称或编号！）】：\n";
             selectedQAs.forEach((qa, idx) => {
-                guidanceText += `\n【规则 ${idx + 1}】${qa.title}\n`;
-                guidanceText += `👉 官方认定标准：${qa.content}\n`;
+                guidanceText += `\n【内部口径 ${idx + 1}】${qa.title}\n`;
+                guidanceText += `👉 内部认定逻辑与上位法依据：${qa.content}\n`;
             });
-            guidanceText += "\n（以上规则来自总局实践答疑，具有最高效力，若文件内容触犯上述规则，直接判定为违规。）\n";
+            guidanceText += `\n（内部口径转换与对外脱敏规则，必须严格遵守：\n` +
+                `1）上述内容属于内部审查实务口径，具有最高判定优先级，若文件内容触犯上述标准应判定为风险；\n` +
+                `2）对外脱敏铁律：在 description、violated_law、suggestion、reference 中严禁出现“集中答疑口径”“总局答疑”“业务口径”“内部口径”或 [总局答疑XX] 等任何字样；\n` +
+                `3）依据归位：请在 violated_law 中直接提取并引用该口径正文所援引的公开正式法规条款（如《公平竞争审查条例》《公平竞争审查条例实施办法》《浙江省招标投标领域公平竞争审查细则》《招标投标领域公平竞争审查规则》《公路工程建设项目资格预审文件和招标文件公平竞争合规指引》）；\n` +
+                `4）建议内化：将口径中的违规法理分析与整改替代路径转化为客观专业的审查理由与具体可执行的修改建议写入 description 与 suggestion；\n` +
+                `5）内部溯源标记：若某风险点参考了上述内部口径，请将该条的简短标题（如 "[总局答疑41] 投标文件中规定，供应商需提供连续投保食品安全责任险记录的期限..."）填入 internal_caliber_ref 字段；未参考则填 ""。）\n`;
         }
 
         return guidanceText;

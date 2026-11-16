@@ -191,6 +191,7 @@ export default function ReviewPage() {
                             defense: item.defense ?? null,
                             rulingReason: item.rulingReason ?? null,
                             confidence: toNumberOrNull(item.confidence),
+                            internalCaliber: item.internalCaliber ?? null,
                         };
                     });
                     setRisks(mappedRisks);

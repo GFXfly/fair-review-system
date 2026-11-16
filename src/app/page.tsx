@@ -23,22 +23,10 @@ import {
     UserIcon,
 } from '@/components/ui/Icons';
 
-const CAPABILITIES = [
-    {
-        no: '01',
-        title: '编制阶段合规自查',
-        desc: '服务镇街工程经办、审查员与工程招标代理机构，在招标文件发布前排查排除、限制竞争隐患。',
-    },
-    {
-        no: '02',
-        title: '浙江 21 条细则对标',
-        desc: '对照《公平竞争审查条例》与浙江省招投标领域细则，深度识别地域业绩加分、变相资质门槛与保证金壁垒。',
-    },
-    {
-        no: '03',
-        title: '原文定位与意见书导出',
-        desc: '高亮定位违规原句、匹配典型通报案例，一键导出标准格式审查意见书。',
-    },
+const CAPABILITY_PILLS = [
+    { no: '01', label: '事前合规自查' },
+    { no: '02', label: '浙江 21 条细则对标' },
+    { no: '03', label: '意见书一键导出' },
 ];
 
 const ORG_TYPE_OPTIONS: { value: OrgType; label: string }[] = [
@@ -222,35 +210,31 @@ export default function LoginPage() {
                     <BrandSeal char="审" size={40} variant="onDark" />
                     <div className={styles.coverOrg}>
                         <span className={styles.coverOrgName}>杭州市临安区市场监督管理局</span>
-                        <span className={styles.coverOrgSub}>LIN&apos;AN DISTRICT ADMINISTRATION FOR MARKET REGULATION</span>
                     </div>
                 </header>
 
                 <div className={styles.coverMain}>
-                    <div className={styles.coverEyebrow}>
-                        <span className={styles.coverEyebrowLine} />
-                        公平竞争审查 · 招投标专项
-                    </div>
+                    <span className={styles.coverAccentLine} aria-hidden="true" />
                     <h1 className={styles.coverTitle}>
                         招投标领域
                         <br />
                         <em>公平竞争</em>审查系统
                     </h1>
                     <p className={styles.coverLead}>
-                        以《公平竞争审查条例》与浙江省招投标领域细则为准绳，在招标文书发布之前，发现并纠正排除、限制竞争的条款。
+                        面向工程招投标文书的事前合规自查与辅助审查平台
                     </p>
 
-                    <ol className={styles.capList}>
-                        {CAPABILITIES.map((cap) => (
-                            <li key={cap.no} className={styles.capItem}>
-                                <span className={styles.capNo}>{cap.no}</span>
-                                <div className={styles.capText}>
-                                    <h3>{cap.title}</h3>
-                                    <p>{cap.desc}</p>
-                                </div>
-                            </li>
+                    <div className={styles.capStrip} aria-label="核心能力">
+                        {CAPABILITY_PILLS.map((item, idx) => (
+                            <React.Fragment key={item.no}>
+                                {idx > 0 && <span className={styles.capDot} aria-hidden="true" />}
+                                <span className={styles.capPill}>
+                                    <span className={styles.capPillNo}>{item.no}</span>
+                                    <span>{item.label}</span>
+                                </span>
+                            </React.Fragment>
                         ))}
-                    </ol>
+                    </div>
                 </div>
 
                 <footer className={styles.coverFoot}>
@@ -277,9 +261,7 @@ export default function LoginPage() {
                         {mode === 'login' ? (
                             <>
                                 <div className={styles.cardHead}>
-                                    <span className={styles.cardKicker}>账号登录</span>
-                                    <h2 className={styles.cardTitle}>审查员登录</h2>
-                                    <p className={styles.cardSub}>请使用经管理员审批通过的账号登录系统</p>
+                                    <h2 className={styles.cardTitle}>系统登录</h2>
                                 </div>
 
                                 <form className={styles.form} onSubmit={handleLogin}>
@@ -343,9 +325,8 @@ export default function LoginPage() {
                         ) : (
                             <>
                                 <div className={styles.cardHead}>
-                                    <span className={styles.cardKicker}>实名注册</span>
                                     <h2 className={styles.cardTitle}>申请开通账号</h2>
-                                    <p className={styles.cardSub}>提交后经管理员审核通过即可登录使用</p>
+                                    <p className={styles.cardSub}>提交后经管理员审核通过即可使用</p>
                                 </div>
 
                                 <form className={styles.form} onSubmit={handleRegister}>
@@ -523,7 +504,7 @@ export default function LoginPage() {
 
                     <p className={styles.formNote}>
                         <LockIcon size={13} />
-                        仅限经审批的政务人员及招标代理机构使用 · 严禁上传涉密文档
+                        内部政务及授权代理机构使用 · 严禁上传涉密文档
                     </p>
                 </div>
             </section>

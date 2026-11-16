@@ -2,6 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { NoticeModalState } from '@/components/ui/IgnoredNoticeModal';
+
+export interface UseReviewSubmitOptions {
+    onRefreshRecords?: () => void;
+}
 
 /**
  * 文件上传与审查提交的全部状态，含 /api/analyze 提交后的指数退避轮询。
@@ -10,7 +15,7 @@ import { useRouter } from 'next/navigation';
  * 状态放在子组件里会在离开「文件审查」时被卸载，进行中的审查轮询会被打断、
  * 已选文件会被清空。
  */
-export function useReviewSubmit() {
+export function useReviewSubmit(options?: UseReviewSubmitOptions) {
     const router = useRouter();
 
     const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -20,6 +25,14 @@ export function useReviewSubmit() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analyzingStatus, setAnalyzingStatus] = useState("正在进行智能审查...");
     const [analyzingProgress, setAnalyzingProgress] = useState(0);
+    const [noticeModal, setNoticeModal] = useState<NoticeModalState>({
+        open: false,
+        mode: 'ignored',
+    });
+
+    const closeNoticeModal = () => {
+        setNoticeModal(prev => ({ ...prev, open: false }));
+    };
 
     const handleFileSelect = (file: File) => {
         // Check for .doc extension
@@ -142,9 +155,29 @@ export function useReviewSubmit() {
 
                     } else if (statusData.status === 'ignored') {
                         setAnalyzingStatus("该文件无需审查");
-                        alert(`【无需审查】\n\n该文件不属于公平竞争审查范围：\n${statusData.progressMessage || '已自动跳过'}`);
+                        let detailReason: string | null = statusData.progressMessage || null;
+                        try {
+                            const detailRes = await fetch(`/api/reviews/${recordId}`);
+                            if (detailRes.ok) {
+                                const detailData = await detailRes.json();
+                                if (detailData?.gatekeeper?.reason) {
+                                    detailReason = detailData.gatekeeper.reason;
+                                }
+                            }
+                        } catch {
+                            // 详情拉取失败时保留 progressMessage 兜底
+                        }
+
+                        setNoticeModal({
+                            open: true,
+                            mode: 'ignored',
+                            fileName: selectedFile.name,
+                            message: detailReason,
+                            recordId,
+                        });
+                        setSelectedFile(null);
                         setIsAnalyzing(false);
-                        window.location.reload();
+                        options?.onRefreshRecords?.();
                         return;
 
                     } else if (statusData.status === 'failed') {
@@ -166,17 +199,13 @@ export function useReviewSubmit() {
         } catch (error: any) {
             console.error('Error starting review:', error);
 
-            let errorMessage = '审查启动失败';
-
-            if (error.message) {
-                errorMessage += `\n\n错误详情：${error.message}`;
-            }
-
-            if (error.suggestion) {
-                errorMessage += `\n\n建议：${error.suggestion}`;
-            }
-
-            alert(errorMessage);
+            setNoticeModal({
+                open: true,
+                mode: 'error',
+                fileName: selectedFile?.name || null,
+                message: error?.message || '审查启动失败，请稍后重试',
+                suggestion: error?.suggestion || null,
+            });
             setIsAnalyzing(false);
         }
     };
@@ -189,11 +218,13 @@ export function useReviewSubmit() {
         isAnalyzing,
         analyzingStatus,
         analyzingProgress,
+        noticeModal,
         handleFileSelect,
         confirmUpload,
         cancelUpload,
         removeFile,
         closeDocWarning,
+        closeNoticeModal,
         startReview
     };
 }

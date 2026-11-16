@@ -12,6 +12,7 @@ export interface AuditIssue {
     suggestion: string;
     reference?: string; // Reference to similar case or regulation
     violated_law: string; // Specific article, e.g., "《公平竞争审查条例》第十条第一款"
+    internal_caliber_ref?: string; // 内部答疑口径溯源标题（仅管理员可见，不对外展示）
 
     // Optional debate fields
     defense?: string;
@@ -543,6 +544,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
     1. description字段（150-300字）：明确违规类型、具体内容、违规原因、补充说明。
     2. violated_law字段：必须包含完整法条内容。
     3. reference字段：**严格执行宁缺毋滥原则**。无高匹配度案例时必须留空。若有匹配，必须包含【案例原文】！
+    4. 对外脱敏要求：description、violated_law、suggestion、reference 面向外部招标人/代理机构展示，严禁出现“集中答疑口径”“总局答疑”“业务口径”“内部口径”或 [总局答疑XX] 等内部资料名称；reference 仅限引用上方检索到的公开通报典型案例。
 
     【输出格式 - 必须严格遵守】
     返回一个 JSON 对象，顶层必须且只能包含一个 "risks" 数组字段，所有风险点都放进该数组：
@@ -555,7 +557,8 @@ export async function runAuditor(category: string, text: string, guidance: strin
                 "violated_law": "...",
                 "location": "...",
                 "suggestion": "...",
-                "reference": "严格按照上述模板，必须包含【案例原文】。"
+                "reference": "严格按照上述模板，必须包含【案例原文】。",
+                "internal_caliber_ref": "若参考了上方【内部审查实务口径参考】，填写对应的 [总局答疑XX] 标题，否则填 \"\""
             }
         ]
     }
@@ -590,8 +593,14 @@ export async function runAuditor(category: string, text: string, guidance: strin
                     typeof issue[field as keyof AuditIssue] === 'string'
                     && (issue[field as keyof AuditIssue] as string).trim().length > 0)
                 && (issue.reference === undefined || typeof issue.reference === 'string')
+                && (issue.internal_caliber_ref === undefined || issue.internal_caliber_ref === null || typeof issue.internal_caliber_ref === 'string')
             )) return null;
-            return issues;
+            return issues.map(issue => ({
+                ...issue,
+                ...(typeof issue.internal_caliber_ref === 'string'
+                    ? { internal_caliber_ref: issue.internal_caliber_ref.trim() }
+                    : { internal_caliber_ref: undefined }),
+            }));
         } catch {
             return null; // JSON 解析失败：异常，触发重试
         }

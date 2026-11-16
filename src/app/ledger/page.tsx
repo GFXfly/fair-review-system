@@ -9,6 +9,7 @@ import ChangePasswordModal from '@/app/dashboard/ChangePasswordModal';
 import type { DashboardUser } from '@/app/dashboard/types';
 import { RecordStatusBadge, RiskCountBadge, formatDateTime } from '@/app/dashboard/record-badges';
 import CustomSelect from '@/components/ui/CustomSelect';
+import IgnoredNoticeModal, { type NoticeModalState } from '@/components/ui/IgnoredNoticeModal';
 import {
     AlertTriangleIcon,
     ArrowLeftIcon,
@@ -63,6 +64,10 @@ export default function LedgerPage() {
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
     const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [noticeModal, setNoticeModal] = useState<NoticeModalState>({
+        open: false,
+        mode: 'ignored',
+    });
 
     // 鉴权与数据并行加载：身份用于决定是否展示「提交账号」列；
     // 记录范围由后端按 session role 决定（admin 全部 / 普通自己）。
@@ -94,7 +99,13 @@ export default function LedgerPage() {
 
     const openRecord = (record: ReviewRecord) => {
         if (record.status === 'ignored') {
-            alert(record.summary ?? '该文件无需审查');
+            setNoticeModal({
+                open: true,
+                mode: 'ignored',
+                fileName: record.fileName,
+                message: record.summary ?? '该文件无需审查',
+                recordId: record.id,
+            });
         } else {
             router.push(`/review/${record.id}`);
         }
@@ -343,6 +354,15 @@ export default function LedgerPage() {
                     onClose={() => setShowPasswordModal(false)}
                 />
             )}
+
+            <IgnoredNoticeModal
+                open={noticeModal.open}
+                mode={noticeModal.mode}
+                fileName={noticeModal.fileName}
+                message={noticeModal.message}
+                recordId={noticeModal.recordId}
+                onClose={() => setNoticeModal(prev => ({ ...prev, open: false }))}
+            />
         </div>
     );
 }

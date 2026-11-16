@@ -84,6 +84,7 @@ ${buildDebateContext(risk, docText)}
 
 【输出要求】
 请直接输出一段简练的“辩护词”。
+注意：辩护词面向外部公开反馈，只能引用公开颁布的法律法规与审查细则，严禁出现“集中答疑口径”“总局答疑”等内部资料字样。
 如果确实无法找到合理解释，请直接回答：“无有效辩护理由。”
 `;
 
@@ -154,6 +155,7 @@ ${defense}
 - **从严把握DISMISS**：只有辩护理由完全成立且有明确法律依据时才可DISMISS
 - **置信度要求**：DISMISS决定要求置信度≥85%，否则改为DOWNGRADE
 - **理由清晰**：ruling_reason 必须说明具体依据，不能含糊其辞
+- **对外合规表达**：辩护词与 ruling_reason、revised_risk 均面向外部公开反馈，只能引用公开颁布的法律法规与审查细则，严禁出现“集中答疑口径”“总局答疑”等内部资料字样
 
 【输出格式 (JSON)】
 {
@@ -211,6 +213,7 @@ ${defense}
             risk_level: ruling.revised_risk?.risk_level || risk.risk_level,
             description: ruling.revised_risk?.description || risk.description,
             suggestion: ruling.revised_risk?.suggestion || risk.suggestion,
+            internal_caliber_ref: risk.internal_caliber_ref,
             defense: defense,
             rulingReason: ruling.ruling_reason,
             confidence: ruling.confidence

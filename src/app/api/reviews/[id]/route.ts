@@ -3,6 +3,7 @@ import { unlink } from 'fs/promises';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
+import { formatRiskForViewer } from '@/lib/caliber-sanitizer';
 
 export async function DELETE(
     req: NextRequest,
@@ -94,29 +95,37 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const isAdmin = currentUser.role === 'admin';
+
         const responseData = {
             id: review.id,
             fileName: review.fileName,
             text: review.originalText || "",
             html: review.originalHtml || "",
+            viewerRole: currentUser.role,
             gatekeeper: {
                 category: (review.summary && review.summary.includes('文件类型：')) ? review.summary.split('。')[0].replace('文件类型：', '') : '未知',
                 reason: review.summary || '无摘要',
                 needs_review: review.status !== 'ignored'
             },
-            risks: review.risks.map((r: any) => ({
-                id: r.id.toString(),
-                level: r.level,
-                title: r.title,
-                description: r.description,
-                location: r.location,
-                suggestion: r.suggestion,
-                law: r.law,
-                relatedCase: r.relatedCase,
-                defense: r.defense ?? null,
-                rulingReason: r.rulingReason ?? null,
-                confidence: r.confidence ?? null,
-            }))
+            risks: review.risks.map((r: any) =>
+                formatRiskForViewer(
+                    {
+                        id: r.id.toString(),
+                        level: r.level,
+                        title: r.title,
+                        description: r.description,
+                        location: r.location,
+                        suggestion: r.suggestion,
+                        law: r.law,
+                        relatedCase: r.relatedCase,
+                        defense: r.defense ?? null,
+                        rulingReason: r.rulingReason ?? null,
+                        confidence: r.confidence ?? null,
+                    },
+                    isAdmin
+                )
+            )
         };
 
         return NextResponse.json(responseData);

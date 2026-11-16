@@ -9,6 +9,7 @@ import {
     BookOpenIcon,
     GavelIcon,
     LightbulbIcon,
+    LockIcon,
     QuoteIcon,
     ScaleLawIcon,
 } from '@/components/ui/Icons';
@@ -96,7 +97,7 @@ export default function RiskDetail({ risk, reviewId, onBack }: RiskDetailProps) 
                     <div className={styles.detailMuted}>暂无相似案例数据。</div>
                 ) : (
                     <div className={styles.caseBox}>
-                        <div className={styles.caseBoxHead}>案例来源 / 权威答疑</div>
+                        <div className={styles.caseBoxHead}>公开典型案例</div>
                         <div className={styles.caseBoxBody}>
                             {risk.case.split('\n').map((line, idx) => (
                                 <p key={idx}>{line}</p>
@@ -132,6 +133,24 @@ export default function RiskDetail({ risk, reviewId, onBack }: RiskDetailProps) 
                 <SectionTitle icon={<LightbulbIcon size={14} />}>整改完善建议</SectionTitle>
                 <div className={styles.suggestionBox}>{risk.suggestion}</div>
             </section>
+
+            {risk.internalCaliber && (
+                <section className={styles.internalCaliberCard} aria-label="内部参考口径">
+                    <div className={styles.internalCaliberHead}>
+                        <span className={styles.internalCaliberTitle}>
+                            <LockIcon size={13} />
+                            内部参考口径
+                        </span>
+                        <span className={`${kit.badge} ${kit.toneMuted} ${styles.internalCaliberTag}`}>
+                            仅管理员可见 · 导出不展示
+                        </span>
+                    </div>
+                    <div className={styles.internalCaliberBody}>{risk.internalCaliber}</div>
+                    <div className={styles.internalCaliberNote}>
+                        系统已自动将该内部口径转化为上方公开发规依据与整改建议，外部账号及导出的 Word 意见书均隐藏此项。
+                    </div>
+                </section>
+            )}
 
             {reviewId && <RiskFeedback reviewId={reviewId} riskId={risk.id} />}
         </div>

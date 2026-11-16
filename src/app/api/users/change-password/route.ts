@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
 
         // Apply rate limiting
         const clientId = getClientId(request);
-        const rateLimitResult = await applyRateLimit(passwordResetRateLimiter, clientId);
+        const rateLimitResult = await applyRateLimit(
+            passwordResetRateLimiter,
+            `${currentUser.id}:${clientId}`
+        );
 
         if (!rateLimitResult.success) {
             await logFailure('change_password_failed', '密码修改尝试次数过多', currentUser.id, currentUser.username, { clientId }, request);

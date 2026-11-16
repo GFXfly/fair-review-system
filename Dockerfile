@@ -38,6 +38,9 @@ COPY . .
 # ENV NEXT_TELEMETRY_DISABLED 1
 
 
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=1280"
+
 RUN npx prisma generate
 
 RUN \

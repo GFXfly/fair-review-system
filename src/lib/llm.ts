@@ -30,18 +30,14 @@ function getSiliconFlowClient() {
 
 // Model Constants - Allow override via environment variables
 //
-// ⚠️ DeepSeek V4 迁移（2026-04）：
-// 旧名 deepseek-chat / deepseek-reasoner 将于 2026-07-24 15:59 UTC 停用。
-// V4 取消了"用不同模型名选推理"，改为同一模型 + thinking 参数切换（见 callLLM）。
-//   - FLASH_MODEL：跑量环节（守门、检索、改写、预警），快
-//   - PRO_MODEL：质量命门（核心审查 Auditor、裁决 Judge），开 thinking
-export const FLASH_MODEL = process.env.FLASH_MODEL_NAME || 'deepseek-v4-flash';
+// ⚠️ DeepSeek V4 / V4.1 模型配置：
+//   - FLASH_MODEL：跑量环节（守门、检索、改写、预警），使用官方滚动别名 deepseek-flash（当前指向 V4.1-Flash）
+//   - PRO_MODEL：质量命门（核心审查 Auditor、裁决 Judge），使用旗舰 deepseek-v4-pro 并开启 thinking
+export const FLASH_MODEL = process.env.FLASH_MODEL_NAME || 'deepseek-flash';
 export const PRO_MODEL = process.env.PRO_MODEL_NAME || 'deepseek-v4-pro';
 
-// SiliconFlow / Local Provider Models
-export const QWEN_MODEL = process.env.MAIN_MODEL_NAME || 'Qwen/Qwen3-235B-A22B-Instruct-2507';
-export const GLM_MODEL = 'THUDM/glm-4-9b-chat';
-export const KIMI_MODEL = 'Qwen/Qwen2.5-72B-Instruct';
+// SiliconFlow / Local Provider Models（跨厂商红蓝对抗辩护）
+export const QWEN_MODEL = process.env.MAIN_MODEL_NAME || 'Qwen/Qwen3.8-27B';
 
 
 /**

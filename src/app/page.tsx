@@ -65,11 +65,11 @@ export default function LoginPage() {
                     <div style={{ marginBottom: '8px' }}>数据来源：杭州市公共资源交易平台、招必得、浙江政府采购网</div>
                     <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '15px', flexWrap: 'wrap' }}>
                         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                            浙ICP备2025160577号-5
+                            浙ICP备2026097272号-1
                         </a>
-                        <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33018502002536" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <a href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33018502002722" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <img src="/beian.png" alt="备案图标" style={{ width: '16px', height: '16px' }} />
-                            浙公网安备33018502002536号
+                            浙公网安备33018502002722号
                         </a>
                     </div>
                 </div>

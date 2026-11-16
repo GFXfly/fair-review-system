@@ -99,7 +99,7 @@ export function useReviewSubmit() {
             let lastProgress = -1;
 
             const pollStatus = async (): Promise<void> => {
-                try {
+                while (true) {
                     const statusResponse = await fetch(`/api/reviews/${recordId}/status`);
 
                     if (!statusResponse.ok) {
@@ -123,6 +123,9 @@ export function useReviewSubmit() {
 
                     if (statusData.status === 'completed') {
                         const fullReviewResponse = await fetch(`/api/reviews/${recordId}`);
+                        if (!fullReviewResponse.ok) {
+                            throw new Error('获取审查结果失败，请在审查记录中重新打开');
+                        }
                         const fullReviewData = await fullReviewResponse.json();
 
                         sessionStorage.setItem('temp_review_data', JSON.stringify({
@@ -151,12 +154,9 @@ export function useReviewSubmit() {
                         throw new Error('审查超时，请刷新页面查看审查记录');
 
                     } else {
-                        setTimeout(pollStatus, interval);
+                        await new Promise<void>(resolve => setTimeout(resolve, interval));
                     }
 
-                } catch (pollError: any) {
-                    console.error('[Poll] Error:', pollError);
-                    throw pollError;
                 }
             };
 

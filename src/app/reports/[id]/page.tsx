@@ -1,8 +1,14 @@
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 import ReportDetailClient from './ReportDetailClient';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 export default async function ReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const user = await getCurrentUser();
+    if (!user) {
+        redirect('/');
+    }
+
     const resolvedParams = await params;
     const id = parseInt(resolvedParams.id);
 

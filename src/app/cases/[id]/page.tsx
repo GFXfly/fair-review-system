@@ -1,9 +1,14 @@
-
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 import CaseDetailClient from './CaseDetailClient';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const user = await getCurrentUser();
+    if (!user) {
+        redirect('/');
+    }
+
     const resolvedParams = await params;
     const id = parseInt(resolvedParams.id);
 

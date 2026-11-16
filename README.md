@@ -308,3 +308,17 @@ git pull origin main
 Made with ❤️ by Felix Gao
 
 </div>
+
+
+## 开发验证
+
+项目规范见 [AGENTS.md](./AGENTS.md)，当前进度与待办见 [ROADMAP.md](./ROADMAP.md)。
+
+```bash
+npm test
+npx tsc --noEmit --incremental false
+npm run build
+npm run lint
+```
+
+`npm test` 使用 Node 内置测试器和项目已有 TypeScript 编译器，覆盖审查异常、反馈权限与前端轮询；数据库、模型 API 和浏览器 I/O 使用隔离替身，不访问生产数据或付费模型。真实模型和浏览器交互须单独验证。

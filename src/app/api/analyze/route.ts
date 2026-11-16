@@ -211,14 +211,14 @@ async function processAnalysisAsync(
         const finalRisks = debateResults.filter(risk => risk !== null);
 
         // Step 5: Risk Radar (85%)
-        // Run for any category when there's at least one High-risk finding —
-        // system-level risks (利益输送 / 定向招标) show up in POLICY docs too,
-        // not only BIDDING files.
-        await updateProgress(recordId, 85, '正在生成风险预警...');
-        let radarAlert = null;
-        const hasHighRisk = finalRisks.some(r => r.risk_level === 'High');
-        if (hasHighRisk) {
-            radarAlert = await runRiskRadar(fileName, finalRisks);
+        // 预警结果暂未设计落库字段，默认跳过以节省耗时与 LLM 调用成本；
+        // 如需在日志中验证预警模型输出，可通过 ENABLE_RISK_RADAR=true 显式开启。
+        if (process.env.ENABLE_RISK_RADAR === 'true') {
+            await updateProgress(recordId, 85, '正在生成风险预警...');
+            const hasHighRisk = finalRisks.some(r => r.risk_level === 'High');
+            if (hasHighRisk) {
+                await runRiskRadar(fileName, finalRisks);
+            }
         }
 
         // Step 6: Save results (95%)

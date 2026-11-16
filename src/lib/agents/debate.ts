@@ -55,7 +55,7 @@ function buildDebateContext(risk: AuditIssue, docText: string): string {
 // ==========================================
 // 🔥 优化2：模型配置（能力对等的多样性）
 // ==========================================
-export const DEBATE_MODEL = QWEN_MODEL;   // Defender: Qwen3-235B-A22B（跨厂商对抗，刻意不与 Judge 同源）
+export const DEBATE_MODEL = QWEN_MODEL;   // Defender: Qwen3.8-27B（跨厂商对抗，刻意不与 Judge 同源）
 export const JUDGE_MODEL = PRO_MODEL;      // Judge: DeepSeek V4 Pro 思考模式（强力裁决）
 
 /**

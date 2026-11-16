@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unlink } from 'fs/promises';
+import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -32,16 +34,22 @@ export async function DELETE(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        // Delete risks first (if not cascading) - strictly speaking prisma handles cascade if configured,
-        // but explicit delete is safer if schema is unknown.
-        // Assuming cascade delete is set up on foreign key or we just delete the record if relation is mandatory.
-        // Let's try deleting the record directly.
-        await prisma.reviewRisk.deleteMany({
-            where: { reviewId: id }
-        });
+        await prisma.$transaction([
+            prisma.reviewRisk.deleteMany({
+                where: { reviewId: id }
+            }),
+            prisma.reviewRecord.delete({
+                where: { id: id }
+            }),
+        ]);
 
-        await prisma.reviewRecord.delete({
-            where: { id: id }
+        // 同步清理磁盘上的原始上传文档（若不存在则静默忽略）
+        const safeId = path.basename(id);
+        const uploadPath = path.join(process.cwd(), 'data', 'uploads', `${safeId}.docx`);
+        await unlink(uploadPath).catch((err: NodeJS.ErrnoException) => {
+            if (err.code !== 'ENOENT') {
+                console.warn('[Reviews] Failed to remove uploaded file:', uploadPath, err.message);
+            }
         });
 
         return NextResponse.json({ success: true });

@@ -5,9 +5,9 @@ import { prisma } from '@/lib/prisma';
 export async function runGuidanceCounselor(text: string, category: string = ''): Promise<string> {
     console.log('[GuidanceCounselor] Starting retrieval of expert Q&A criteria...');
 
-    try {
-        let guidanceText = "";
+    let guidanceText = "";
 
+    try {
         // 0. 根据文件类型加载核心法规
         if (category === 'BIDDING') {
             // 招标文件 → 加载《浙江省招标投标领域公平竞争审查细则》
@@ -59,7 +59,7 @@ export async function runGuidanceCounselor(text: string, category: string = ''):
 
         if (allQAs.length === 0) {
             console.log('[GuidanceCounselor] No QA fragments found.');
-            return "";
+            return guidanceText;
         }
 
         // 2. Ask LLM to pick the top 5 relevant questions based on the input text
@@ -79,32 +79,35 @@ export async function runGuidanceCounselor(text: string, category: string = ''):
 
         请判断：这份文件可能涉及上述哪些“答疑口径”中的场景？
         请选出最相关的 3-5 个问题的 ID。
-        如果文件内容与这些问题都不相关，请返回空。
+        如果文件内容与这些问题都不相关，请返回空数组。
         
-        只返回一个 JSON 数组，包含 ID 数字，例如：[129, 135, 140]。不要返回其他文字。
+        只返回一个 JSON 对象，格式为 {"ids": [129, 135, 140]}；若无相关项则返回 {"ids": []}。不要返回其他文字。
         `;
 
         const selectionResult = await callLLM(
-            "你是一个精准的检索助手。只返回 JSON 数组。",
+            "你是一个精准的检索助手。只返回包含 ids 数组的 JSON 对象。",
             selectionPrompt,
             { jsonMode: true, model: FLASH_MODEL } // 跑量检索，用 flash
         );
 
         let selectedIds: number[] = [];
         try {
-            selectedIds = firstArray<number>(JSON.parse(selectionResult || "[]")) ?? [];
+            const rawIds = firstArray<unknown>(JSON.parse(selectionResult || "{}") ) ?? [];
+            selectedIds = rawIds
+                .map(id => (typeof id === 'number' ? id : Number(id)))
+                .filter(id => Number.isSafeInteger(id) && id > 0);
         } catch (e) {
             console.error('[GuidanceCounselor] Failed to parse ID selection:', selectionResult);
             // Fallback: if parsing fails, maybe regex match the IDs?
             const matches = selectionResult?.match(/\d+/g);
             if (matches) {
-                selectedIds = matches.map(Number);
+                selectedIds = matches.map(Number).filter(id => Number.isSafeInteger(id) && id > 0);
             }
         }
 
         if (selectedIds.length === 0) {
             console.log('[GuidanceCounselor] No relevant QA selected by LLM.');
-            return "";
+            return guidanceText;
         }
 
         console.log('[GuidanceCounselor] Selected IDs:', selectedIds);
@@ -120,19 +123,21 @@ export async function runGuidanceCounselor(text: string, category: string = ''):
             }
         });
 
-        // 4. Format the output
-        guidanceText += "★【总局权威答疑口径（最高优先级，必须严格执行）】：\n";
-        selectedQAs.forEach((qa, idx) => {
-            guidanceText += `\n【规则 ${idx + 1}】${qa.title}\n`;
-            guidanceText += `👉 官方认定标准：${qa.content}\n`;
-        });
-        guidanceText += "\n（以上规则来自总局实践答疑，具有最高效力，若文件内容触犯上述规则，直接判定为违规。）\n";
+        if (selectedQAs.length > 0) {
+            // 4. Format the output
+            guidanceText += "★【总局权威答疑口径（最高优先级，必须严格执行）】：\n";
+            selectedQAs.forEach((qa, idx) => {
+                guidanceText += `\n【规则 ${idx + 1}】${qa.title}\n`;
+                guidanceText += `👉 官方认定标准：${qa.content}\n`;
+            });
+            guidanceText += "\n（以上规则来自总局实践答疑，具有最高效力，若文件内容触犯上述规则，直接判定为违规。）\n";
+        }
 
         return guidanceText;
 
     } catch (error) {
         console.error('[GuidanceCounselor] Error:', error);
-        return "";
+        return guidanceText;
     }
     // Note: Do NOT disconnect Prisma here - it's a global singleton that should persist
 }

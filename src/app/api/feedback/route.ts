@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser, requireAuth } from '@/lib/auth';
+import { requireAuth, handleAuthError } from '@/lib/auth';
 
 // POST /api/feedback - 提交反馈
 export async function POST(req: NextRequest) {
@@ -19,8 +19,9 @@ export async function POST(req: NextRequest) {
         }
 
         // 确保 riskId 是数字
-        const numericRiskId = typeof riskId === 'number' ? riskId : parseInt(String(riskId), 10);
-        if (isNaN(numericRiskId)) {
+        const numericRiskId = typeof riskId === 'number' ? riskId
+            : typeof riskId === 'string' && /^\d+$/.test(riskId) ? Number(riskId) : NaN;
+        if (!Number.isSafeInteger(numericRiskId) || numericRiskId <= 0 || typeof reviewId !== 'string') {
             console.log('[Feedback API] riskId不是有效数字:', riskId);
             return NextResponse.json({ error: '风险点ID格式错误' }, { status: 400 });
         }
@@ -32,7 +33,8 @@ export async function POST(req: NextRequest) {
             where: {
                 id: numericRiskId,
                 reviewId: reviewId
-            }
+            },
+            include: { review: { select: { userId: true } } }
         });
 
         console.log('[Feedback API] 查询结果:', risk ? '找到' : '未找到');
@@ -41,11 +43,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: '风险点不存在' }, { status: 404 });
         }
 
+        if (user.role !== 'admin' && risk.review.userId !== user.id) {
+            return NextResponse.json({ error: '无权对此审查记录提交反馈' }, { status: 403 });
+        }
+
         // 检查是否已经反馈过
         const existing = await prisma.riskFeedback.findFirst({
             where: {
                 reviewId,
-                riskId,
+                riskId: numericRiskId,
                 userId: user.id
             }
         });
@@ -58,7 +64,7 @@ export async function POST(req: NextRequest) {
         const feedback = await prisma.riskFeedback.create({
             data: {
                 reviewId,
-                riskId,
+                riskId: numericRiskId,
                 userId: user.id,
                 isAccurate
             }
@@ -71,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
         console.error('Submit feedback error:', error);
-        return NextResponse.json({ error: '提交反馈失败' }, { status: 500 });
+        return handleAuthError(error);
     }
 }
 

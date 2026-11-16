@@ -1,107 +1,76 @@
 #!/bin/bash
+set -euo pipefail
 
-# Configuration - Change these if needed
-SERVER_IP="43.143.47.221"
+# 单位生产服务器配置（shencha.lalws.cn，与 unit-sites 统一编排）
+SERVER_IP="43.142.83.192"
 SERVER_USER="root"
 REMOTE_DIR="/root/fair-review-system"
+UNIT_COMPOSE="/opt/unit-sites/compose.json"
+IMAGE_NAME="fair-review-system-fair-review-system:latest"
 LOCAL_ZIP="fair-review-system.zip"
 
-echo "🚀 Starting deployment to $SERVER_IP..."
+echo "🚀 Starting deployment to $SERVER_IP (shencha.lalws.cn)..."
 
-# 1. Clean previous build artifacts
-echo "🧹 Cleaning up old builds..."
-rm -f $LOCAL_ZIP
-rm -rf .next
+# 1. Clean previous local zip
+echo "🧹 Cleaning up old archive..."
+rm -f "$LOCAL_ZIP"
 
-# 2. Package the application
-echo "📦 Packaging application (excluding heavy files)..."
-# Create a temporary exclusion file
-echo "node_modules/*" > .deployignore
-echo ".next/*" >> .deployignore
-echo ".git/*" >> .deployignore
-echo ".env.local" >> .deployignore
-echo "$LOCAL_ZIP" >> .deployignore
-echo "data/*" >> .deployignore
-echo "prisma/*.db" >> .deployignore
-echo "prisma/dev.db" >> .deployignore
-echo "models/*" >> .deployignore
-echo "*.zip" >> .deployignore
-echo "dist_intranet/*" >> .deployignore
-# 运行时用不到的源数据/备份文件，避免打包上传堆积在服务器（保留 .env —— 它是容器 API key 来源）
-echo "*.docx" >> .deployignore
-echo "*.doc" >> .deployignore
-echo "*.pdf" >> .deployignore
-echo "*.xlsx" >> .deployignore
-echo "*.html" >> .deployignore
-echo ".env.backup" >> .deployignore
-echo ".env.local.backup" >> .deployignore
-echo "prisma/*.local_backup" >> .deployignore
+# 2. Package the application (excluding heavy/local-only files; never upload local .env*)
+echo "📦 Packaging application..."
+cat > .deployignore << 'IGNORE_EOF'
+node_modules/*
+.next/*
+.git/*
+.tmp/*
+.env
+.env.*
+fair-review-system.zip
+data/*
+prisma/*.db
+prisma/*.db-*
+prisma/*.local_backup
+models/*
+*.zip
+dist_intranet/*
+*.docx
+*.doc
+*.pdf
+*.xlsx
+*.html
+IGNORE_EOF
 
-zip -r $LOCAL_ZIP . -x@.deployignore
-rm .deployignore
+zip -rq "$LOCAL_ZIP" . -x@.deployignore
+rm -f .deployignore
 
 # 3. Upload to server
-echo "mb Uploading code to server..."
-ssh $SERVER_USER@$SERVER_IP "mkdir -p $REMOTE_DIR/data"
-scp $LOCAL_ZIP $SERVER_USER@$SERVER_IP:$REMOTE_DIR/
+echo "⬆️ Uploading code to server..."
+ssh "$SERVER_USER@$SERVER_IP" "mkdir -p $REMOTE_DIR/data"
+scp "$LOCAL_ZIP" "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/"
+rm -f "$LOCAL_ZIP"
 
-# 4. Execute remote commands
-echo "🔄 building and restarting containers on remote server..."
-ssh $SERVER_USER@$SERVER_IP << 'EOF'
-    cd /root/fair-review-system
-    
-    # Unzip over existing files
-    unzip -o fair-review-system.zip
-    rm fair-review-system.zip
+# 4. Build image with resource guard and recreate only shencha service
+echo "🔄 Building image and rolling unit-shencha on remote server..."
+ssh "$SERVER_USER@$SERVER_IP" << EOF
+    set -euo pipefail
+    cd "$REMOTE_DIR"
 
+    # Backup current image tag for instant rollback
+    docker tag "$IMAGE_NAME" "fair-review-system-fair-review-system:backup-\$(date +%Y%m%d%H%M)" || true
 
-    # Update permission for scripts
-    chmod +x scripts/*.ts
-    
-    # Ensure data directory exists and is writable by the container user (1001)
-    mkdir -p data
-    chown -R 1001:1001 data
-    chmod -R 777 data
+    # Sync source directories cleanly (preserve server .env and data/)
+    rm -rf src public prisma/migrations tests
+    unzip -oq "$LOCAL_ZIP"
+    rm -f "$LOCAL_ZIP"
 
+    # Resource-bounded build on 2C/4G host so sibling containers stay smooth
+    docker build --memory=1800m --memory-swap=3400m --cpu-quota=150000 -t "$IMAGE_NAME" .
 
-    # Rebuild and restart container
-    docker-compose down
-    docker-compose up -d --build
+    # Recreate only shencha service inside /opt/unit-sites/compose.json
+    docker compose -f "$UNIT_COMPOSE" up -d --no-deps --force-recreate shencha
 
-    # Run DB migration (if schema changed)
-    echo "🗄 Syncing database schema..."
-    # Use global prisma installed in Dockerfile
-    docker exec fair-review-system prisma db push
-
-    # Ensure Admin Role
-    echo "👑 Configure Admin..."
-    # Update permission for scripts
-    chmod +x scripts/*.ts
-    
-    # Run database migration (if needed)
-    docker compose up -d
-
-    # 清理本次构建产生的缓存和悬空镜像，防止多次部署累积撑爆磁盘
-    echo "🧹 Cleaning up build cache & dangling images..."
+    echo "🧹 Cleaning up dangling build cache & images..."
     docker builder prune -f
     docker image prune -f
-
-    # Wait for container to be ready
-    # Run the user creation script inside the container (Optional: Commented out to save time on updates)
-    # echo "Using Docker container to run batch user creation..."
-    # docker exec fair-review-system sh -c "
-    #   npm install pinyin-pro xlsx && \
-    #   node scripts/batch_create_users.js
-    # "
-    
-    # Copy the Excel file from container to host (Optional)
-    # docker cp fair-review-system:/app/user_accounts_server.xlsx ./user_accounts_server.xlsx
 EOF
 
-# 5. Download the Excel file to local
-echo "⬇️ Downloading generated user accounts..."
-scp $SERVER_USER@$SERVER_IP:~/fair-review-system/user_accounts_server.xlsx ./user_accounts_server.xlsx
-
-echo "✅ Deployment complete! App is running on port 3005 and domain shencha.site should be active."
-echo "✅ User accounts Excel downloaded to ./user_accounts_server.xlsx"
-echo "🎉 All Done! Visit http://$SERVER_IP:3005 if you haven't configured Nginx yet."
+echo "✅ Deployment complete! Verify https://shencha.lalws.cn"

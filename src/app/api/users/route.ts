@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { requireAdmin, requireAuth, handleAuthError, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
+import { requireAdmin, handleAuthError, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 
 /**
- * Get all users (requires authentication)
- * Regular users can see the list, but sensitive operations require admin
+ * Get all users (admin only)
  */
 export async function GET(request: NextRequest) {
     try {
-        // Require authentication to view users
-        await requireAuth(request);
+        await requireAdmin(request);
 
         const users = await prisma.user.findMany({
             orderBy: { createdAt: 'desc' },

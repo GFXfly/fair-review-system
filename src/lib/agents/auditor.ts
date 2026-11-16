@@ -578,12 +578,20 @@ export async function runAuditor(category: string, text: string, guidance: strin
         if (!resultStr) return null; // 空 content：V4 thinking 偶发抽风，触发重试
         try {
             const parsed = JSON.parse(resultStr);
-            let issues = firstArray<AuditIssue>(parsed);
+            let issues: AuditIssue[] | null = Array.isArray(parsed) ? parsed
+                : parsed && Array.isArray(parsed.risks) ? parsed.risks : null;
             if (!issues && parsed && typeof parsed === 'object'
                 && ('risk_level' in parsed || 'description' in parsed)) {
                 issues = [parsed as AuditIssue];
             }
-            return issues; // null=无数组负载（异常，重试）；[]或[...]=有效结果
+            if (!issues || !issues.every(issue =>
+                issue && ['High', 'Medium', 'Low'].includes(issue.risk_level)
+                && ['description', 'location', 'suggestion', 'violated_law'].every(field =>
+                    typeof issue[field as keyof AuditIssue] === 'string'
+                    && (issue[field as keyof AuditIssue] as string).trim().length > 0)
+                && (issue.reference === undefined || typeof issue.reference === 'string')
+            )) return null;
+            return issues;
         } catch {
             return null; // JSON 解析失败：异常，触发重试
         }
@@ -609,8 +617,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
     }
 
     if (issues === null) {
-        console.error('[Auditor] 多次重试仍未获得有效结果，返回空。');
-        return [];
+        throw new Error('核心审查多次重试仍未获得有效结果，请重试或转人工复核');
     }
 
     // Ensure IDs are unique

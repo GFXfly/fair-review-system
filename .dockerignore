@@ -5,4 +5,16 @@ npm-debug.log
 README.md
 .next
 .git
+data
+data.*
+prisma/*.db
+prisma/*.db-*
+prisma/*.local_backup
+models
+*.zip
+dist_intranet
+.env.local
+.env.backup
+.env.local.backup
+
 

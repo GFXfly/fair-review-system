@@ -4,17 +4,34 @@ import bcrypt from 'bcryptjs';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
 import { getCurrentUser, validatePassword, PASSWORD_REQUIREMENTS_MSG } from '@/lib/auth';
+import { applyRateLimit, passwordResetRateLimiter, getClientId } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+    let userId: number | null = null;
     try {
-        const { currentPassword, newPassword } = await req.json();
         const currentUser = await getCurrentUser();
 
         if (!currentUser) {
             return NextResponse.json({ error: '未登录' }, { status: 401 });
         }
 
-        const userId = currentUser.id;
+        userId = currentUser.id;
+
+        const clientId = getClientId(req);
+        const rateLimitResult = await applyRateLimit(
+            passwordResetRateLimiter,
+            `${userId}:${clientId}`
+        );
+        if (!rateLimitResult.success) {
+            await logFailure('change_password', '密码修改尝试次数过多', userId, currentUser.username, { clientId }, req);
+            return rateLimitResult.response!;
+        }
+
+        const { currentPassword, newPassword } = await req.json();
+
+        if (typeof currentPassword !== 'string' || !currentPassword || typeof newPassword !== 'string' || !newPassword) {
+            return NextResponse.json({ error: '当前密码和新密码都是必填项' }, { status: 400 });
+        }
 
         if (!validatePassword(newPassword)) {
             await logFailure('change_password', '新密码不符合要求', userId, undefined, undefined, req);
@@ -59,8 +76,6 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
         console.error('Change password error:', error);
-
-        const userId = null;
 
         await logFailure('change_password', '系统错误', userId, undefined, { error: String(error) }, req);
 

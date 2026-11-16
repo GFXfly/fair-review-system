@@ -64,8 +64,8 @@ export default function FileUpload({ onFileSelect }: Props) {
                     ) : (
                         <>
                             <div className={styles.icon}>📄</div>
-                            <p>点击或拖拽文件到此处上传</p>
-                            <span className={styles.hint}>支持 .docx 格式</span>
+                            <p>点击或拖拽招标文件 / 采购文书到此处上传</p>
+                            <span className={styles.hint}>支持 .docx 格式（最大 10MB），自动对照《浙江省招标投标领域公平竞争审查细则》审查</span>
                         </>
                     )}
                 </label>

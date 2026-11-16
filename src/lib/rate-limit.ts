@@ -7,6 +7,12 @@ export const loginRateLimiter = new RateLimiterMemory({
     duration: 15 * 60, // 15 minutes
 });
 
+// Rate limiter for self-registration (10 attempts per hour per IP)
+export const registerRateLimiter = new RateLimiterMemory({
+    points: 10,
+    duration: 60 * 60, // 1 hour
+});
+
 // Rate limiter for password reset (3 attempts per hour per IP)
 export const passwordResetRateLimiter = new RateLimiterMemory({
     points: 3,
@@ -55,8 +61,15 @@ export async function applyRateLimit(
     try {
         await rateLimiter.consume(identifier);
         return { success: true };
-    } catch (rateLimiterRes: any) {
-        const retryAfter = Math.ceil(rateLimiterRes.msBeforeNext / 1000) || 60;
+    } catch (rateLimiterRes: unknown) {
+        const msBeforeNext =
+            typeof rateLimiterRes === 'object' &&
+            rateLimiterRes !== null &&
+            'msBeforeNext' in rateLimiterRes &&
+            typeof (rateLimiterRes as { msBeforeNext?: unknown }).msBeforeNext === 'number'
+                ? (rateLimiterRes as { msBeforeNext: number }).msBeforeNext
+                : 0;
+        const retryAfter = Math.ceil(msBeforeNext / 1000) || 60;
 
         return {
             success: false,

@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "招投标领域公平竞争审查辅助平台",
-  description: "公平竞争智能审查辅助平台",
+  title: "招投标领域公平竞争审查系统",
+  description: "招投标领域公平竞争智能审查系统",
 };
 
 export default function RootLayout({

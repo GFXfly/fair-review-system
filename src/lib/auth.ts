@@ -44,11 +44,23 @@ export async function getCurrentUser(request?: NextRequest) {
                 username: true,
                 name: true,
                 department: true,
+                orgType: true,
+                phone: true,
                 role: true,
+                status: true,
+                sessionVersion: true,
                 createdAt: true,
                 // Exclude password
             }
         });
+
+        // 即时吊销校验：账号不存在、非 active 或 sessionVersion 不匹配时立即失效
+        if (!user || user.status !== 'active') {
+            return null;
+        }
+        if ((session.sessionVersion ?? 1) !== user.sessionVersion) {
+            return null;
+        }
 
         return user;
     } catch (error) {

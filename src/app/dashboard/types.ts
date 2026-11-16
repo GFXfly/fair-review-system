@@ -11,8 +11,11 @@ export interface DashboardUser {
     username: string;
     name: string;
     department: string | null;
+    orgType?: string;
+    phone?: string | null;
     role: string; // 'admin' | 'user'
     createdAt: string;
+    pendingUserCount?: number;
 }
 
 /**
@@ -35,6 +38,8 @@ export interface ReviewRecordSummary {
     user: {
         name: string;
         department: string | null;
+        orgType?: string | null;
+        phone?: string | null;
     } | null;
 }
 

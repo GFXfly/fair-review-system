@@ -38,11 +38,10 @@ export default function WorkspaceTab({
 
     return (
         <div className={styles.workspaceGrid}>
-            {/* Left: The Main Action - Upload & Review */}
+            {/* Top: Main Action - Upload & Review (Full Width) */}
             <div className={styles.mainActionArea}>
                 <div className={styles.sectionHeader}>
-                    <h2>🚀 发起新审查</h2>
-                    {/* Description removed as requested */}
+                    <h2>🚀 发起招标文书审查</h2>
                 </div>
                 <div className={styles.uploadWrapper}>
                     {isAnalyzing ? (
@@ -87,25 +86,8 @@ export default function WorkspaceTab({
                             </div>
                         </div>
                     ) : (
-                        // Force remount to clear internal state if needed by using a key,
-                        // though FileUpload state is internal, so key is good practice if we want to reset it.
                         <FileUpload key={pendingFile ? 'pending' : 'new'} onFileSelect={onFileSelect} />
                     )}
-                </div>
-            </div>
-
-            {/* Right: The "Trigger" - System Alerts */}
-            <div className={styles.sidePanel}>
-                <div className={styles.panelHeader}>
-                    <h3>🚨 预警消息</h3>
-                </div>
-                <div className={styles.alertList}>
-                    {/* 预警数据源尚未接入。在有真实接口之前保持空态，
-                        不要在这里放示例数据——业务人员会当成真实风险提示。 */}
-                    <div style={{ textAlign: 'center', padding: '48px 20px', color: '#9ca3af' }}>
-                        <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔔</div>
-                        <div style={{ fontSize: '13px' }}>暂无预警消息</div>
-                    </div>
                 </div>
             </div>
 
@@ -140,6 +122,8 @@ export default function WorkspaceTab({
                                 <tr key={record.id}>
                                     <td>
                                         {record.status === 'completed' && <span style={{ color: '#10b981', background: '#d1fae5', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>已完成</span>}
+                                        {record.status === 'processing' && <span style={{ color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>审查中</span>}
+                                        {record.status === 'pending' && <span style={{ color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>待处理</span>}
                                         {record.status === 'ignored' && <span style={{ color: '#6b7280', background: '#e5e7eb', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>无需审查</span>}
                                         {record.status === 'failed' && <span style={{ color: '#ef4444', background: '#fee2e2', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>失败</span>}
                                     </td>

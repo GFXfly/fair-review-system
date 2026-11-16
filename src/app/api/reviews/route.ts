@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        let whereClause: any = {};
+        let whereClause: { userId?: number } = {};
 
         if (mode === 'admin') {
             // Explicit admin mode (felixgao 后台)：必须确实是 admin
@@ -67,7 +67,9 @@ export async function GET(req: NextRequest) {
                 user: {
                     select: {
                         name: true,
-                        department: true
+                        department: true,
+                        orgType: true,
+                        phone: true
                     }
                 }
             }

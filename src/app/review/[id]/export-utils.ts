@@ -71,11 +71,17 @@ export const exportReviewReport = async (
                 }),
                 new TableCell({
                     children: [
-                        new Paragraph({ children: [new TextRun({ text: '【问题描述】', bold: true })] }),
+                        new Paragraph({ children: [new TextRun({ text: '【原文条款引用】', bold: true })] }),
+                        new Paragraph({ text: risk.snippet || '（详见文书对应位置）' }),
+                        new Paragraph({ text: '' }),
+                        new Paragraph({ children: [new TextRun({ text: '【违规风险分析】', bold: true })] }),
                         new Paragraph({ text: risk.reason }),
                         new Paragraph({ text: '' }),
-                        new Paragraph({ children: [new TextRun({ text: '【修改建议】', bold: true })] }),
-                        new Paragraph({ text: risk.suggestion || '无' }),
+                        new Paragraph({ children: [new TextRun({ text: '【违反法规依据】', bold: true })] }),
+                        new Paragraph({ text: risk.law || '《公平竞争审查条例》及相关招投标细则' }),
+                        new Paragraph({ text: '' }),
+                        new Paragraph({ children: [new TextRun({ text: '【修改完善建议】', bold: true })] }),
+                        new Paragraph({ text: risk.suggestion || '建议删除或调整上述限制性表述' }),
                     ],
                     width: { size: 55, type: WidthType.PERCENTAGE },
                 }),
@@ -88,7 +94,7 @@ export const exportReviewReport = async (
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '序号', bold: true })], alignment: AlignmentType.CENTER })], width: { size: 5, type: WidthType.PERCENTAGE } }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '风险类型', bold: true })], alignment: AlignmentType.CENTER })], width: { size: 15, type: WidthType.PERCENTAGE } }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '风险摘要', bold: true })], alignment: AlignmentType.CENTER })], width: { size: 25, type: WidthType.PERCENTAGE } }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '详细说明与建议', bold: true })], alignment: AlignmentType.CENTER })], width: { size: 55, type: WidthType.PERCENTAGE } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '原文引用、违规依据与修改建议', bold: true })], alignment: AlignmentType.CENTER })], width: { size: 55, type: WidthType.PERCENTAGE } }),
         ],
         tableHeader: true,
     });
@@ -98,7 +104,7 @@ export const exportReviewReport = async (
             properties: {},
             children: [
                 new Paragraph({
-                    text: '公平竞争审查意见书',
+                    text: '招投标领域公平竞争审查意见书',
                     heading: HeadingLevel.TITLE,
                     alignment: AlignmentType.CENTER,
                     spacing: { after: 400 },
@@ -114,8 +120,8 @@ export const exportReviewReport = async (
                 new Paragraph({ text: '一、审查结论', heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 200 } }),
                 new Paragraph({
                     text: risks.length === 0
-                        ? '经审查，该文件未发现违反《公平竞争审查条例》的相关内容，符合公平竞争要求。'
-                        : `经审查，该文件存在 ${risks.length} 处涉嫌违反《公平竞争审查条例》的风险点，建议修改后发布。`,
+                        ? '经审查，该文书未发现违反《公平竞争审查条例》及《浙江省招标投标领域公平竞争审查细则》的相关内容，符合公平竞争审查要求。'
+                        : `经审查，该文书存在 ${risks.length} 处涉嫌违反《公平竞争审查条例》及《浙江省招标投标领域公平竞争审查细则》的风险条款，建议修改完善后发布。`,
                     spacing: { after: 400 },
                 }),
                 new Paragraph({ text: '二、文件摘要', heading: HeadingLevel.HEADING_1, spacing: { before: 200, after: 200 } }),

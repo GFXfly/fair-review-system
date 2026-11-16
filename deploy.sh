@@ -68,6 +68,9 @@ ssh "$SERVER_USER@$SERVER_IP" << EOF
     # Recreate only shencha service inside /opt/unit-sites/compose.json
     docker compose -f "$UNIT_COMPOSE" up -d --no-deps --force-recreate shencha
 
+    echo "🗄 Syncing database schema..."
+    docker exec unit-shencha prisma db push --skip-generate
+
     echo "🧹 Cleaning up dangling build cache & images..."
     docker builder prune -f
     docker image prune -f

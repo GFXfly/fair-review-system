@@ -10,12 +10,15 @@ export type AuditAction =
     | 'login'                   // 用户登录
     | 'login_failed'            // 登录失败
     | 'logout'                  // 用户登出
+    | 'register'                // 用户自助注册
+    | 'register_failed'         // 自助注册失败
     | 'change_password'         // 修改密码
     | 'change_password_failed'  // 修改密码失败
     | 'reset_password'          // 重置密码
     | 'reset_password_failed'   // 重置密码失败
     | 'create_user'             // 创建用户
     | 'create_user_failed'      // 创建用户失败
+    | 'update_user'             // 更新用户资料/状态
     | 'create_cases'            // 创建案例
     | 'upload_file'             // 上传文件
     | 'analyze_file'            // 分析文件
@@ -32,7 +35,7 @@ interface AuditLogParams {
     action: AuditAction;
     resource?: string;
     status: AuditStatus;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     errorMessage?: string;
     request?: NextRequest;
 }
@@ -101,7 +104,7 @@ export async function logSuccess(
     action: AuditAction,
     userId?: number | null,
     resource?: string,
-    details?: Record<string, any>,
+    details?: Record<string, unknown>,
     request?: NextRequest
 ): Promise<void> {
     await logAudit({
@@ -122,7 +125,7 @@ export async function logFailure(
     errorMessage: string,
     userId?: number | null,
     resource?: string,
-    details?: Record<string, any>,
+    details?: Record<string, unknown>,
     request?: NextRequest
 ): Promise<void> {
     await logAudit({

@@ -171,9 +171,11 @@ test('guidance counselor preserves core regulation text when no QA matches', asy
 
 test('GET /api/users enforces admin permission instead of plain login', async () => {
     let adminChecked = false;
+    const orgConstants = load('src/lib/org-constants.ts');
     const route = load('src/app/api/users/route.ts', {
         'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
         bcryptjs: {},
+        '@/lib/org-constants': orgConstants,
         '@/lib/prisma': { prisma: { user: { findMany: async () => [] } } },
         '@/lib/audit-logger': { logSuccess: async () => {}, logFailure: async () => {} },
         '@/lib/auth': {
@@ -298,8 +300,10 @@ test('getSessionOptions enforces strong SESSION_SECRET in production runtime but
 
 test('DELETE /api/users/[id] cleans up foreign keys in a transaction before deleting user', async () => {
     const txOps = [];
+    const orgConstants = load('src/lib/org-constants.ts');
     const route = load('src/app/api/users/[id]/route.ts', {
         'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        '@/lib/org-constants': orgConstants,
         '@/lib/auth': {
             requireAdmin: async () => ({ id: 1, username: 'admin', role: 'admin' }),
             handleAuthError: err => ({ status: err.statusCode || 500 }),
@@ -312,6 +316,7 @@ test('DELETE /api/users/[id] cleans up foreign keys in a transaction before dele
                     delete: args => ({ op: 'user.delete', args }),
                 },
                 reviewRecord: {
+                    count: async () => 0,
                     updateMany: args => ({ op: 'reviewRecord.updateMany', args }),
                 },
                 riskFeedback: {
@@ -480,4 +485,280 @@ test('TextChunker.AUDITOR_CHUNK is 50000 and extractRiskKeywords scans tail of 4
     assert.deepEqual(JSON.parse(JSON.stringify(risks)), []);
     assert.ok(scannedWindows.length >= 7, `expected >= 7 windows, got ${scannedWindows.length}`);
     assert.deepEqual(JSON.parse(JSON.stringify(retrievedKeywords)), [tailRisk]);
+});
+
+test('POST /api/auth/register validates town list, agency name, phone, and creates pending user', async () => {
+    const createdUsers = [];
+    const orgConstants = load('src/lib/org-constants.ts');
+    const route = load('src/app/api/auth/register/route.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        bcryptjs: { hash: async pwd => `hashed_${pwd}` },
+        '@/lib/org-constants': orgConstants,
+        '@/lib/auth': {
+            validatePassword: pwd => typeof pwd === 'string' && pwd.length >= 8,
+            PASSWORD_REQUIREMENTS_MSG: '密码不符合要求',
+        },
+        '@/lib/audit-logger': { logSuccess: async () => {}, logFailure: async () => {} },
+        '@/lib/error-handler': { createErrorResponse: () => ({ error: 'err' }) },
+        '@/lib/rate-limit': {
+            registerRateLimiter: {},
+            getClientId: () => '127.0.0.1',
+            applyRateLimit: async () => ({ success: true }),
+        },
+        '@/lib/prisma': {
+            prisma: {
+                user: {
+                    count: async () => 0,
+                    findUnique: async () => null,
+                    create: async ({ data }) => {
+                        createdUsers.push(data);
+                        return { id: 10, username: data.username };
+                    },
+                },
+            },
+        },
+    });
+
+    // 非法镇街名称
+    const badTown = await route.POST({
+        json: async () => ({
+            username: 'town_user1',
+            password: 'Password123',
+            name: '张三',
+            orgType: 'town',
+            department: '不存在街道',
+            phone: '13800138000',
+        }),
+    });
+    assert.equal(badTown.status, 400);
+
+    // 非法手机号
+    const badPhone = await route.POST({
+        json: async () => ({
+            username: 'town_user1',
+            password: 'Password123',
+            name: '张三',
+            orgType: 'town',
+            department: '锦城街道',
+            phone: '12345',
+        }),
+    });
+    assert.equal(badPhone.status, 400);
+
+    // 代理公司名称过短
+    const badAgency = await route.POST({
+        json: async () => ({
+            username: 'agency_user1',
+            password: 'Password123',
+            name: '李四',
+            orgType: 'agency',
+            department: '公司',
+            phone: '13800138000',
+        }),
+    });
+    assert.equal(badAgency.status, 400);
+
+    // 合法镇街注册成功，status 固定为 pending
+    const okTown = await route.POST({
+        json: async () => ({
+            username: 'town_user1',
+            password: 'Password123',
+            name: '张三',
+            orgType: 'town',
+            department: '锦城街道',
+            phone: '13800138000',
+        }),
+    });
+    assert.equal(okTown.status, 201);
+
+    // 合法招标代理公司注册成功
+    const okAgency = await route.POST({
+        json: async () => ({
+            username: 'agency_user2',
+            password: 'Password123',
+            name: '李四',
+            orgType: 'agency',
+            department: '杭州临安工程招标代理有限公司',
+            phone: '13900139000',
+        }),
+    });
+    assert.equal(okAgency.status, 201);
+
+    assert.equal(createdUsers.length, 2);
+    assert.equal(createdUsers[0].status, 'pending');
+    assert.equal(createdUsers[0].role, 'user');
+    assert.equal(createdUsers[1].status, 'pending');
+    assert.equal(createdUsers[1].orgType, 'agency');
+});
+
+test('POST /api/auth/login blocks non-active statuses and saves sessionVersion for active user', async () => {
+    let currentDbUser = null;
+    const savedSession = { saveCalled: false };
+    const route = load('src/app/api/auth/login/route.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        bcryptjs: { compare: async () => true },
+        '@/lib/audit-logger': { logSuccess: async () => {}, logFailure: async () => {} },
+        '@/lib/error-handler': { createErrorResponse: () => ({ error: 'err' }) },
+        '@/lib/rate-limit': {
+            loginRateLimiter: {},
+            getClientId: () => '127.0.0.1',
+            applyRateLimit: async () => ({ success: true }),
+        },
+        '@/lib/auth': {
+            getSession: async () => ({
+                ...savedSession,
+                save: async function save() {
+                    savedSession.userId = this.userId;
+                    savedSession.username = this.username;
+                    savedSession.role = this.role;
+                    savedSession.sessionVersion = this.sessionVersion;
+                    savedSession.isLoggedIn = this.isLoggedIn;
+                    savedSession.saveCalled = true;
+                },
+            }),
+        },
+        '@/lib/prisma': {
+            prisma: {
+                user: {
+                    findUnique: async () => currentDbUser,
+                },
+            },
+        },
+    });
+
+    currentDbUser = { id: 1, username: 'u1', password: 'h', role: 'user', status: 'pending', sessionVersion: 1 };
+    const pendingRes = await route.POST({ json: async () => ({ username: 'u1', password: 'p' }) });
+    assert.equal(pendingRes.status, 403);
+    assert.match(pendingRes.body.error, /待审批/);
+
+    currentDbUser = { id: 1, username: 'u1', password: 'h', role: 'user', status: 'disabled', sessionVersion: 2 };
+    const disabledRes = await route.POST({ json: async () => ({ username: 'u1', password: 'p' }) });
+    assert.equal(disabledRes.status, 403);
+    assert.match(disabledRes.body.error, /禁用/);
+
+    currentDbUser = { id: 1, username: 'u1', password: 'h', role: 'user', status: 'rejected', sessionVersion: 2 };
+    const rejectedRes = await route.POST({ json: async () => ({ username: 'u1', password: 'p' }) });
+    assert.equal(rejectedRes.status, 403);
+    assert.match(rejectedRes.body.error, /未通过审批/);
+
+    currentDbUser = { id: 1, username: 'u1', password: 'h', role: 'user', status: 'active', sessionVersion: 3, department: '锦城街道' };
+    const activeRes = await route.POST({ json: async () => ({ username: 'u1', password: 'p' }) });
+    assert.equal(activeRes.status, 200);
+    assert.equal(savedSession.saveCalled, true);
+    assert.equal(savedSession.sessionVersion, 3);
+});
+
+test('getCurrentUser revokes session immediately when disabled or sessionVersion mismatches', async () => {
+    let sessionMock = { isLoggedIn: true, userId: 1 };
+    let dbUserMock = { id: 1, username: 'u1', name: '张三', status: 'active', sessionVersion: 1 };
+
+    const auth = load('src/lib/auth.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        'iron-session': { getIronSession: async () => sessionMock },
+        'next/headers': { cookies: async () => ({}) },
+        '@/lib/session': { getSessionOptions: () => ({}) },
+        '@/lib/prisma': {
+            prisma: {
+                user: {
+                    findUnique: async () => dbUserMock,
+                },
+            },
+        },
+    });
+
+    // 存量老 Cookie（无 sessionVersion）且 DB sessionVersion === 1 时兼容有效
+    assert.equal((await auth.getCurrentUser()).username, 'u1');
+
+    // 账号被禁用后立即返回 null
+    dbUserMock = { ...dbUserMock, status: 'disabled' };
+    assert.equal(await auth.getCurrentUser(), null);
+
+    // sessionVersion 自增后旧 Cookie 立即返回 null
+    dbUserMock = { ...dbUserMock, status: 'active', sessionVersion: 2 };
+    assert.equal(await auth.getCurrentUser(), null);
+
+    // 携带匹配的最新 sessionVersion 时有效
+    sessionMock = { isLoggedIn: true, userId: 1, sessionVersion: 2 };
+    assert.equal((await auth.getCurrentUser()).username, 'u1');
+});
+
+test('PATCH /api/users/[id] enforces status transitions and DELETE protects users with reviews', async () => {
+    let targetUser = {
+        id: 2,
+        username: 'u2',
+        name: '王五',
+        department: '锦城街道',
+        orgType: 'town',
+        phone: '13800138000',
+        role: 'user',
+        status: 'pending',
+    };
+    let reviewCount = 2;
+    const updateCalls = [];
+    const orgConstants = load('src/lib/org-constants.ts');
+
+    const route = load('src/app/api/users/[id]/route.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        '@/lib/org-constants': orgConstants,
+        '@/lib/auth': {
+            requireAdmin: async () => ({ id: 1, username: 'admin', role: 'admin' }),
+            handleAuthError: err => ({ status: err.statusCode || 500 }),
+        },
+        '@/lib/audit-logger': { logSuccess: async () => {} },
+        '@/lib/prisma': {
+            prisma: {
+                user: {
+                    findUnique: async () => targetUser,
+                    update: async ({ data }) => {
+                        updateCalls.push(data);
+                        if (data.status) targetUser = { ...targetUser, status: data.status };
+                        return targetUser;
+                    },
+                },
+                reviewRecord: {
+                    count: async () => reviewCount,
+                },
+            },
+        },
+    }, { URL });
+
+    // pending -> active (approve)
+    const approveRes = await route.PATCH(
+        { json: async () => ({ action: 'approve' }) },
+        { params: Promise.resolve({ id: '2' }) }
+    );
+    assert.equal(approveRes.status, 200);
+    assert.equal(updateCalls[0].status, 'active');
+
+    // active -> reject 非法流转返回 409
+    const badReject = await route.PATCH(
+        { json: async () => ({ action: 'reject' }) },
+        { params: Promise.resolve({ id: '2' }) }
+    );
+    assert.equal(badReject.status, 409);
+
+    // active -> disabled 且递增 sessionVersion
+    const disableRes = await route.PATCH(
+        { json: async () => ({ action: 'disable' }) },
+        { params: Promise.resolve({ id: '2' }) }
+    );
+    assert.equal(disableRes.status, 200);
+    assert.equal(updateCalls[1].status, 'disabled');
+    assert.equal(updateCalls[1].sessionVersion.increment, 1);
+
+    // 有审查记录默认 DELETE 返回 409 保护台账
+    const deleteBlocked = await route.DELETE(
+        { url: 'http://localhost/api/users/2' },
+        { params: Promise.resolve({ id: '2' }) }
+    );
+    assert.equal(deleteBlocked.status, 409);
+    assert.match(deleteBlocked.body.error, /2 条历史审查记录/);
+
+    // 禁止修改 admin 状态
+    targetUser = { ...targetUser, role: 'admin', status: 'active' };
+    const adminRes = await route.PATCH(
+        { json: async () => ({ action: 'disable' }) },
+        { params: Promise.resolve({ id: '2' }) }
+    );
+    assert.equal(adminRes.status, 400);
 });

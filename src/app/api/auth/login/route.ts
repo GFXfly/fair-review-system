@@ -46,11 +46,35 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // 2.5 Check user approval / active status
+        if (user.status === 'pending') {
+            await logFailure('login_failed', '账号待审批', user.id, username, { status: user.status }, request);
+            return NextResponse.json(
+                { error: '账号待审批，请联系管理员审核通过后再登录' },
+                { status: 403 }
+            );
+        }
+        if (user.status === 'disabled') {
+            await logFailure('login_failed', '账号已被禁用', user.id, username, { status: user.status }, request);
+            return NextResponse.json(
+                { error: '账号已被禁用，请联系管理员' },
+                { status: 403 }
+            );
+        }
+        if (user.status !== 'active') {
+            await logFailure('login_failed', '账号未通过审批', user.id, username, { status: user.status }, request);
+            return NextResponse.json(
+                { error: '账号未通过审批，请联系管理员' },
+                { status: 403 }
+            );
+        }
+
         // 3. Set secure session with iron-session
         const session = await getSession();
         session.userId = user.id;
         session.username = user.username;
         session.role = user.role;
+        session.sessionVersion = user.sessionVersion;
         session.isLoggedIn = true;
         await session.save();
 

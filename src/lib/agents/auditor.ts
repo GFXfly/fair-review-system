@@ -21,7 +21,7 @@ export interface AuditIssue {
 
 const KEYWORD_WINDOW_SIZE = 8000;
 const KEYWORD_WINDOW_OVERLAP = 1000;
-const KEYWORD_MAX_WINDOWS = 4;
+const KEYWORD_MAX_WINDOWS = 8;
 const KEYWORD_WINDOW_CONCURRENCY = Math.max(
     1,
     parseInt(process.env.KEYWORD_WINDOW_CONCURRENCY || '2'),

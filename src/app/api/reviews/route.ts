@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
+import { recoverStaleReviews } from '@/lib/review-recovery';
 
 export async function GET(req: NextRequest) {
     try {
@@ -37,6 +38,8 @@ export async function GET(req: NextRequest) {
         const isExport = searchParams.get('export') === 'true';
         // all=true：返回全部记录（台账页用）；默认仅 20 条（首页"最近审查记录"）。
         const showAll = isExport || searchParams.get('all') === 'true';
+
+        await recoverStaleReviews();
 
         const reviews = await prisma.reviewRecord.findMany({
             take: showAll ? undefined : 20,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { recoverStaleReviews } from '@/lib/review-recovery';
 
 /**
  * GET /api/reviews/[id]/status
@@ -14,6 +15,8 @@ export async function GET(
         // Require authentication
         const user = await requireAuth(req);
         const { id } = await params;
+
+        await recoverStaleReviews(id);
 
         const review = await prisma.reviewRecord.findUnique({
             where: { id },

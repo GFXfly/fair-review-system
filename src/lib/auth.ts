@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
-import { sessionOptions, SessionData } from '@/lib/session';
+import { getSessionOptions, SessionData } from '@/lib/session';
 
 export const PASSWORD_REQUIREMENTS_MSG = '密码长度至少8位，且包含字母、数字、特殊字符中的两种及以上';
 
@@ -22,7 +22,7 @@ export function validatePassword(password: string): boolean {
  */
 export async function getSession() {
     const cookieStore = await cookies();
-    return getIronSession<SessionData>(cookieStore, sessionOptions);
+    return getIronSession<SessionData>(cookieStore, getSessionOptions());
 }
 
 /**

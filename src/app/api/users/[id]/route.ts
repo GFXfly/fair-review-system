@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin, handleAuthError } from '@/lib/auth';
 import { logSuccess } from '@/lib/audit-logger';
 
-// @ts-ignore
 export async function DELETE(
     request: NextRequest,
     context: { params: Promise<{ id: string }> }
@@ -30,9 +29,14 @@ export async function DELETE(
             return NextResponse.json({ error: '用户不存在' }, { status: 404 });
         }
 
-        await prisma.user.delete({
-            where: { id: userId },
-        });
+        // Unbind nullable foreign keys and delete owned feedback before removing the user
+        await prisma.$transaction([
+            prisma.reviewRecord.updateMany({ where: { userId }, data: { userId: null } }),
+            prisma.riskFeedback.updateMany({ where: { adminUserId: userId }, data: { adminUserId: null } }),
+            prisma.riskFeedback.deleteMany({ where: { userId } }),
+            prisma.auditLog.updateMany({ where: { userId }, data: { userId: null } }),
+            prisma.user.delete({ where: { id: userId } }),
+        ]);
 
         await logSuccess('delete_user', admin.id, admin.username, {
             deletedUserId: userId,

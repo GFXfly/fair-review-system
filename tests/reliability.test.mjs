@@ -253,3 +253,231 @@ test('POST /api/auth/change-password applies rate limit and validates missing fi
     const badInput = await route.POST({ json: async () => ({ currentPassword: '' }) });
     assert.equal(badInput.status, 400);
 });
+
+test('getSessionOptions enforces strong SESSION_SECRET in production runtime but allows build phase', () => {
+    const prevEnv = {
+        NODE_ENV: process.env.NODE_ENV,
+        NEXT_PHASE: process.env.NEXT_PHASE,
+        SESSION_SECRET: process.env.SESSION_SECRET,
+    };
+    const restoreEnv = () => {
+        for (const [k, v] of Object.entries(prevEnv)) {
+            if (v === undefined) delete process.env[k];
+            else process.env[k] = v;
+        }
+    };
+
+    try {
+        const { getSessionOptions } = load('src/lib/session.ts', { 'iron-session': {} });
+
+        process.env.NODE_ENV = 'production';
+        delete process.env.NEXT_PHASE;
+        delete process.env.SESSION_SECRET;
+        assert.throws(() => getSessionOptions(), /CRITICAL: Production SESSION_SECRET/);
+
+        process.env.SESSION_SECRET = 'fair_competition_secret_please_change_this';
+        assert.throws(() => getSessionOptions(), /CRITICAL: Production SESSION_SECRET/);
+
+        process.env.SESSION_SECRET = 'too_short_secret';
+        assert.throws(() => getSessionOptions(), /CRITICAL: Production SESSION_SECRET/);
+
+        process.env.NEXT_PHASE = 'phase-production-build';
+        delete process.env.SESSION_SECRET;
+        const buildOpts = getSessionOptions();
+        assert.equal(buildOpts.password, 'dev_secret_only_for_local_development_environment');
+
+        delete process.env.NEXT_PHASE;
+        process.env.SESSION_SECRET = 'a'.repeat(32);
+        const prodOpts = getSessionOptions();
+        assert.equal(prodOpts.password, 'a'.repeat(32));
+        assert.equal(prodOpts.cookieOptions.secure, true);
+    } finally {
+        restoreEnv();
+    }
+});
+
+test('DELETE /api/users/[id] cleans up foreign keys in a transaction before deleting user', async () => {
+    const txOps = [];
+    const route = load('src/app/api/users/[id]/route.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        '@/lib/auth': {
+            requireAdmin: async () => ({ id: 1, username: 'admin', role: 'admin' }),
+            handleAuthError: err => ({ status: err.statusCode || 500 }),
+        },
+        '@/lib/audit-logger': { logSuccess: async () => {} },
+        '@/lib/prisma': {
+            prisma: {
+                user: {
+                    findUnique: async () => ({ id: 2, username: 'target' }),
+                    delete: args => ({ op: 'user.delete', args }),
+                },
+                reviewRecord: {
+                    updateMany: args => ({ op: 'reviewRecord.updateMany', args }),
+                },
+                riskFeedback: {
+                    updateMany: args => ({ op: 'riskFeedback.updateMany', args }),
+                    deleteMany: args => ({ op: 'riskFeedback.deleteMany', args }),
+                },
+                auditLog: {
+                    updateMany: args => ({ op: 'auditLog.updateMany', args }),
+                },
+                $transaction: async ops => {
+                    txOps.push(...ops);
+                    return ops;
+                },
+            },
+        },
+    });
+
+    const res = await route.DELETE({}, { params: Promise.resolve({ id: '2' }) });
+    assert.equal(res.status, 200);
+    const ops = JSON.parse(JSON.stringify(txOps));
+    assert.equal(ops.length, 5);
+    assert.deepEqual(ops[0], { op: 'reviewRecord.updateMany', args: { where: { userId: 2 }, data: { userId: null } } });
+    assert.deepEqual(ops[1], { op: 'riskFeedback.updateMany', args: { where: { adminUserId: 2 }, data: { adminUserId: null } } });
+    assert.deepEqual(ops[2], { op: 'riskFeedback.deleteMany', args: { where: { userId: 2 } } });
+    assert.deepEqual(ops[3], { op: 'auditLog.updateMany', args: { where: { userId: 2 }, data: { userId: null } } });
+    assert.deepEqual(ops[4], { op: 'user.delete', args: { where: { id: 2 } } });
+});
+
+test('POST /api/cases maps department to documentOrg and invalidates case embedding cache', async () => {
+    let inserted = null;
+    const invalidated = [];
+    const route = load('src/app/api/cases/route.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        '@/lib/auth': {
+            requireAdmin: async () => ({ id: 1, username: 'admin', role: 'admin' }),
+            requireAuth: async () => ({ id: 1, username: 'admin', role: 'admin' }),
+            AuthError: class extends Error {},
+            handleAuthError: err => ({ status: err.statusCode || 500 }),
+        },
+        '@/lib/audit-logger': { logSuccess: async () => {} },
+        '@/lib/rag': { invalidateEmbeddingCache: target => invalidated.push(target) },
+        '@/lib/prisma': {
+            prisma: {
+                case: {
+                    createMany: async ({ data }) => {
+                        inserted = data;
+                        return { count: data.length };
+                    },
+                },
+            },
+        },
+    });
+
+    const res = await route.POST({
+        json: async () => ({
+            title: '案例1',
+            content: '内容',
+            violationType: '地域限制',
+            result: '已废止',
+            publishDate: '2026-01-01',
+            department: '某县交通局',
+            violationClause: '第十条',
+            documentName: '某文件',
+            violationDetail: '排斥外地企业',
+            legalScope: '公平竞争审查条例',
+        }),
+    });
+
+    assert.equal(res.status, 201);
+    assert.equal(inserted.length, 1);
+    assert.equal('department' in inserted[0], false);
+    assert.equal(inserted[0].documentOrg, '某县交通局');
+    assert.equal(inserted[0].violationClause, '第十条');
+    assert.equal(inserted[0].documentName, '某文件');
+    assert.equal(inserted[0].violationDetail, '排斥外地企业');
+    assert.equal(inserted[0].legalScope, '公平竞争审查条例');
+    assert.deepEqual(invalidated, ['case']);
+});
+
+test('GET /api/reviews/[id]/status recovers stale processing record before returning status', async () => {
+    const staleDate = new Date(Date.now() - 20 * 60 * 1000);
+    const record = {
+        id: 'rev_stale',
+        status: 'processing',
+        progress: 40,
+        progressMessage: '审查中',
+        riskCount: 0,
+        fileName: 'bidding.docx',
+        userId: 1,
+        updatedAt: staleDate,
+    };
+    const prismaMock = {
+        reviewRecord: {
+            updateMany: async ({ where, data }) => {
+                if (
+                    where.id === record.id &&
+                    where.status === record.status &&
+                    record.updatedAt < where.updatedAt.lt
+                ) {
+                    Object.assign(record, data);
+                    return { count: 1 };
+                }
+                return { count: 0 };
+            },
+            findUnique: async ({ where }) => (where.id === record.id ? { ...record } : null),
+        },
+    };
+    const recovery = load('src/lib/review-recovery.ts', {
+        '@/lib/prisma': { prisma: prismaMock },
+    });
+    const statusRoute = load('src/app/api/reviews/[id]/status/route.ts', {
+        'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
+        '@/lib/auth': { requireAuth: async () => ({ id: 1, role: 'user' }) },
+        '@/lib/prisma': { prisma: prismaMock },
+        '@/lib/review-recovery': recovery,
+    });
+
+    const res = await statusRoute.GET({}, { params: Promise.resolve({ id: 'rev_stale' }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'failed');
+    assert.equal(res.body.progress, 0);
+    assert.match(res.body.progressMessage, /超时/);
+});
+
+test('TextChunker.AUDITOR_CHUNK is 50000 and extractRiskKeywords scans tail of 45000-char document', async () => {
+    const { TextChunker } = load('src/lib/text-utils.ts');
+    assert.equal(TextChunker.AUDITOR_CHUNK, 50000);
+    assert.equal(TextChunker.getChunkForAgent('x'.repeat(45000), 'auditor').length, 45000);
+
+    const { APP_CONFIG } = load('src/lib/config.ts');
+    const tailRisk = '本地企业优先中标，外地企业不得参与投标';
+    const longText = '正文填充内容。'.repeat(6350) + tailRisk + '结尾条款。'.repeat(20);
+    assert.ok(longText.length >= 44000 && longText.length <= 50000);
+
+    const retrievedKeywords = [];
+    const scannedWindows = [];
+    const { runAuditor } = load('src/lib/agents/auditor.ts', {
+        '@/lib/llm': {
+            callLLM: async (_sys, userPrompt) => {
+                if (userPrompt.includes('提取风险关键片段')) {
+                    scannedWindows.push(userPrompt);
+                    return userPrompt.includes(tailRisk) ? JSON.stringify([tailRisk]) : '[]';
+                }
+                return '{"risks":[]}';
+            },
+            firstArray: value => (Array.isArray(value) ? value : Object.values(value || {}).find(Array.isArray) || null),
+            FLASH_MODEL: 'flash',
+            PRO_MODEL: 'pro',
+        },
+        '@/lib/rag': { searchSimilarCases: async () => [], searchSimilarRegulations: async () => [] },
+        '@/lib/text-utils': { TextChunker },
+        '@/lib/config': { APP_CONFIG },
+        './retrieval': {
+            RetrievalAgent: class {
+                async batchRetrievalForRisks(keywords) {
+                    retrievedKeywords.push(...keywords);
+                    return [];
+                }
+                async rewriteQuery() { return []; }
+                async fusionSearch() { return []; }
+            },
+        },
+    });
+
+    const risks = await runAuditor('BIDDING', longText);
+    assert.deepEqual(JSON.parse(JSON.stringify(risks)), []);
+    assert.ok(scannedWindows.length >= 7, `expected >= 7 windows, got ${scannedWindows.length}`);
+    assert.deepEqual(JSON.parse(JSON.stringify(retrievedKeywords)), [tailRisk]);
+});

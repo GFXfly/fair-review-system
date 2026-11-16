@@ -6,7 +6,7 @@
 export class TextChunker {
     // 定义各个 Agent 的文本长度限制
     static readonly GATEKEEPER_CHUNK = 2000;    // 门卫只需要看前面部分判断类型
-    static readonly AUDITOR_CHUNK = 15000;      // 审计员需要看更多内容
+    static readonly AUDITOR_CHUNK = 50000;      // 审计员需要看更多内容
     static readonly DEBATE_CHUNK = 5000;        // 辩论需要足够上下文（从3000增加到5000）
     static readonly GUIDANCE_CHUNK = 3000;      // 指导顾问检索相关规则
 

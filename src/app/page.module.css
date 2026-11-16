@@ -1,368 +1,621 @@
+/* =====================================================================
+   登录 / 实名注册页：左「精装卷宗封面」+ 右「宣纸底精装公文卡片」
+   ===================================================================== */
+
 .container {
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    min-height: 100vh;
+    background: var(--bg-canvas);
 }
 
-/* Left Panel - Dark Tech Style */
-.leftPanel {
-    flex: 6.5;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    color: #fff;
-    padding: 3.5rem 4rem 2rem;
+/* ---------------- 左栏：卷宗封面 ---------------- */
+.cover {
+    position: relative;
     display: flex;
     flex-direction: column;
-    position: relative;
-    justify-content: space-between;
-    overflow-y: auto;
+    min-height: 100vh;
+    padding: 44px 56px 32px;
+    overflow: hidden;
+    color: #E9EFEC;
+    background:
+        radial-gradient(120% 80% at 0% 0%, rgba(74, 122, 109, 0.28) 0%, rgba(74, 122, 109, 0) 55%),
+        linear-gradient(162deg, #1E3F37 0%, #17332C 46%, #10251F 100%);
+    isolation: isolate;
 }
 
-.leftPanel::before {
-    content: '';
+/* 静态纸纹噪点（SVG feTurbulence，零动画） */
+.coverTexture {
     position: absolute;
     inset: 0;
-    background-image:
-        radial-gradient(circle at 20% 25%, rgba(56, 189, 248, 0.16) 0%, transparent 28%),
-        radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.16) 0%, transparent 28%);
+    z-index: -1;
+    opacity: 0.22;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
     pointer-events: none;
 }
 
-.leftContent {
-    position: relative;
-    z-index: 1;
-    margin: auto 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2.25rem;
+/* 右下角渐隐公文方格暗纹 */
+.coverGrid {
+    position: absolute;
+    right: -40px;
+    bottom: -40px;
+    z-index: -1;
+    width: 72%;
+    height: 70%;
+    background-image:
+        linear-gradient(rgba(233, 239, 236, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(233, 239, 236, 0.07) 1px, transparent 1px);
+    background-size: 28px 28px;
+    -webkit-mask-image: radial-gradient(ellipse at 100% 100%, #000 0%, rgba(0, 0, 0, 0.6) 35%, transparent 72%);
+    mask-image: radial-gradient(ellipse at 100% 100%, #000 0%, rgba(0, 0, 0, 0.6) 35%, transparent 72%);
+    pointer-events: none;
 }
 
-.branding {
-    text-align: center;
-}
-
-.orgBadge {
-    display: inline-block;
-    padding: 0.4rem 1rem;
-    border-radius: 999px;
-    background: rgba(56, 189, 248, 0.14);
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    color: #7dd3fc;
-    font-size: 0.875rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    margin-bottom: 1.1rem;
-}
-
-.branding h1 {
-    font-size: 2.4rem;
-    margin: 0;
-    background: linear-gradient(to right, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: 1px;
-    font-weight: 800;
-}
-
-.branding p {
-    color: #94a3b8;
-    font-size: 0.9rem;
-    letter-spacing: 3px;
-    margin-top: 0.75rem;
-    opacity: 0.85;
-    font-weight: 500;
-}
-
-.capabilityList {
-    display: flex;
-    flex-direction: column;
-    gap: 1.15rem;
-    max-width: 720px;
-    width: 100%;
-    margin: 0 auto;
-}
-
-.capabilityCard {
-    display: flex;
-    align-items: flex-start;
-    gap: 1.15rem;
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.78) 0%, rgba(15, 23, 42, 0.82) 100%);
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    border-radius: 14px;
-    padding: 1.35rem 1.5rem;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.35);
-    transition: transform 0.25s ease, border-color 0.25s ease;
-}
-
-.capabilityCard:hover {
-    transform: translateY(-2px);
-    border-color: rgba(56, 189, 248, 0.38);
-}
-
-.capabilityIcon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    background: rgba(56, 189, 248, 0.12);
-    border: 1px solid rgba(56, 189, 248, 0.24);
+.coverHead {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 1.4rem;
-    flex-shrink: 0;
+    gap: 14px;
 }
 
-.capabilityText h3 {
-    margin: 0 0 0.4rem 0;
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #f1f5f9;
-}
-
-.capabilityText p {
-    margin: 0;
-    font-size: 0.9rem;
-    line-height: 1.6;
-    color: #94a3b8;
-}
-
-.footer {
-    position: relative;
-    z-index: 1;
-    margin-top: 1.5rem;
-    text-align: center;
-}
-
-.beianRow {
-    font-size: 12px;
-    color: #6b7280;
+.coverOrg {
     display: flex;
-    flex-direction: row;
-    align-items: center;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.coverOrgName {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #F4F7F5;
+}
+
+.coverOrgSub {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    color: rgba(233, 239, 236, 0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coverMain {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     justify-content: center;
-    gap: 15px;
+    max-width: 560px;
+    padding: 56px 0 40px;
+}
+
+.coverEyebrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 22px;
+    font-size: 12.5px;
+    letter-spacing: 0.32em;
+    color: rgba(233, 239, 236, 0.66);
+}
+
+.coverEyebrowLine {
+    width: 28px;
+    height: 1px;
+    background: #D9775F;
+}
+
+.coverTitle {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: clamp(34px, 3.6vw, 50px);
+    font-weight: 900;
+    line-height: 1.28;
+    letter-spacing: 0.06em;
+    color: #FAFBFA;
+}
+
+.coverTitle em {
+    position: relative;
+    font-style: normal;
+    white-space: nowrap;
+    background-image: linear-gradient(transparent 66%, rgba(200, 75, 49, 0.42) 66%, rgba(200, 75, 49, 0.42) 86%, transparent 86%);
+    background-repeat: no-repeat;
+    padding: 0 2px;
+}
+
+.coverLead {
+    margin: 22px 0 0;
+    max-width: 30em;
+    font-size: 14.5px;
+    line-height: 1.9;
+    color: rgba(233, 239, 236, 0.72);
+}
+
+.capList {
+    margin: 40px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid rgba(233, 239, 236, 0.12);
+}
+
+.capItem {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(233, 239, 236, 0.12);
+}
+
+.capNo {
+    padding-top: 1px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    color: #E59A86;
+}
+
+.capText h3 {
+    margin: 0 0 5px;
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #F4F7F5;
+}
+
+.capText p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.75;
+    color: rgba(233, 239, 236, 0.6);
+}
+
+.coverFoot {
+    display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    font-size: 12px;
+    color: rgba(233, 239, 236, 0.5);
 }
 
-.beianRow a {
-    color: inherit;
-    text-decoration: none;
+.coverFoot a {
+    transition: color 0.16s;
+}
+
+.coverFoot a:hover {
+    color: rgba(233, 239, 236, 0.9);
+}
+
+.footSep {
+    width: 1px;
+    height: 11px;
+    background: rgba(233, 239, 236, 0.22);
 }
 
 .beianLink {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
 }
 
-/* Right Panel - Minimalist White */
-.rightPanel {
-    flex: 3.5;
-    background: #fff;
+.beianLink img {
+    display: block;
+    width: 14px;
+    height: 14px;
+    opacity: 0.85;
+}
+
+/* ---------------- 右栏：表单 ---------------- */
+.formSide {
+    position: relative;
+    height: 100vh;
     overflow-y: auto;
+    background:
+        radial-gradient(90% 60% at 100% 0%, rgba(43, 84, 75, 0.05) 0%, transparent 60%),
+        var(--bg-canvas);
+}
+
+.formScroll {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    padding: 2rem;
+    min-height: 100%;
+    padding: 48px 32px 32px;
 }
 
-.rightPanelInner {
-    margin: auto 0;
+.card {
+    position: relative;
     width: 100%;
-    max-width: 410px;
+    max-width: 440px;
+    padding: 36px 36px 26px;
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow:
+        0 1px 2px rgba(24, 28, 27, 0.04),
+        0 8px 20px -8px rgba(24, 28, 27, 0.08),
+        0 28px 56px -24px rgba(24, 28, 27, 0.14);
+    animation: cardIn 0.32s var(--ease);
 }
 
-.loginBox {
-    width: 100%;
+.card::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+    background: var(--brand);
 }
 
-.logoPlaceholder {
-    text-align: center;
-    margin-bottom: 2rem;
+.cardWide {
+    max-width: 464px;
+    padding-top: 30px;
 }
 
-.logoPlaceholderCompact {
-    text-align: center;
-    margin-bottom: 1.25rem;
+@keyframes cardIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }
 
-.logoIcon {
-    font-size: 2.75rem;
-    margin-bottom: 0.75rem;
+.cardHead {
+    margin-bottom: 24px;
 }
 
-.logoPlaceholder h2,
-.logoPlaceholderCompact h2 {
-    font-size: 1.45rem;
-    color: #1e293b;
-    font-weight: 600;
-    margin: 0 0 0.35rem 0;
+.cardKicker {
+    display: inline-block;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    color: var(--seal);
 }
 
-.subTitle {
-    font-size: 0.85rem;
-    color: #64748b;
+.cardTitle {
     margin: 0;
+    font-family: var(--font-serif);
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    color: var(--ink-1);
+}
+
+.cardSub {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--ink-3);
 }
 
 .form {
     display: flex;
     flex-direction: column;
-    gap: 1.2rem;
+    gap: 16px;
 }
 
-.regForm {
+.field {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 7px;
+    min-width: 0;
 }
 
-.twoColRow {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-}
-
-.inputGroup {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.inputGroup label {
-    font-size: 0.85rem;
-    color: #475569;
+.label {
+    font-size: 13px;
     font-weight: 500;
+    color: var(--ink-2);
+}
+
+.twoCol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.inputWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.inputIcon {
+    position: absolute;
+    left: 13px;
+    display: inline-flex;
+    color: var(--ink-4);
+    pointer-events: none;
+    transition: color 0.16s;
 }
 
 .input {
     width: 100%;
-    box-sizing: border-box;
-    padding: 0.72rem 0.85rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    color: #0f172a;
-    background: #fff;
-    transition: all 0.2s;
+    height: 42px;
+    padding: 0 14px 0 38px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    color: var(--ink-1);
+    font-size: 14px;
+    transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), background-color 0.16s var(--ease);
+}
+
+.input::placeholder {
+    color: var(--ink-4);
+    font-family: var(--font-sans);
+}
+
+.input:hover {
+    border-color: #BDB7AA;
 }
 
 .input:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    border-color: var(--brand);
+    box-shadow: var(--ring);
 }
 
-.segmentGroup {
+.inputWrap:focus-within .inputIcon {
+    color: var(--brand);
+}
+
+.inputHasAction {
+    padding-right: 42px;
+}
+
+.inputMono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13.5px;
+}
+
+.inputAction {
+    position: absolute;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--ink-4);
+    transition: background-color 0.16s, color 0.16s;
+}
+
+.inputAction:hover {
+    background: var(--bg-subtle);
+    color: var(--ink-2);
+}
+
+/* 三段式胶囊切换 */
+.segment {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-    background: #f1f5f9;
-    padding: 4px;
-    border-radius: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--line-faint);
 }
 
 .segmentBtn {
+    height: 34px;
+    padding: 0 8px;
     border: none;
+    border-radius: 7px;
     background: transparent;
-    padding: 0.52rem 0.4rem;
-    border-radius: 6px;
-    font-size: 0.82rem;
+    color: var(--ink-3);
+    font-size: 13px;
     font-weight: 500;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.18s ease;
+    white-space: nowrap;
+    transition: background-color 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.18s var(--ease);
 }
 
 .segmentBtn:hover {
-    color: #0f172a;
+    color: var(--ink-1);
 }
 
 .segmentActive,
 .segmentActive:hover {
-    background: #fff;
-    color: #2563eb;
-    font-weight: 600;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+    background: var(--bg-surface);
+    color: var(--brand-strong);
+    box-shadow: 0 1px 2px rgba(24, 28, 27, 0.1), 0 0 0 1px rgba(24, 28, 27, 0.04);
 }
 
-.errorBox {
-    color: #dc2626;
-    font-size: 13px;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
+/* 提示条 */
+.alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
     padding: 10px 12px;
-    border-radius: 8px;
-    line-height: 1.45;
-}
-
-.noticeBox {
-    color: #047857;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
     font-size: 13px;
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    padding: 10px 12px;
-    border-radius: 8px;
-    line-height: 1.45;
+    line-height: 1.55;
+    animation: cardIn 0.2s var(--ease);
 }
 
-.loginBtn {
-    background: #0f172a;
-    color: #fff;
-    padding: 0.9rem;
-    border-radius: 8px;
+.alert svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.alertError {
+    background: var(--risk-high-bg);
+    border-color: var(--risk-high-line);
+    color: var(--risk-high);
+}
+
+.alertOk {
+    background: var(--ok-bg);
+    border-color: var(--ok-line);
+    color: var(--ok);
+}
+
+/* 主按钮 */
+.submitBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 44px;
+    margin-top: 6px;
     border: none;
-    font-size: 0.98rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-    text-align: center;
-    margin-top: 0.4rem;
+    border-radius: var(--radius-md);
+    background: var(--brand);
+    color: #FFFFFF;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 1px 2px rgba(21, 46, 40, 0.3), 0 6px 14px -6px rgba(21, 46, 40, 0.45);
+    transition: background-color 0.16s var(--ease), box-shadow 0.16s var(--ease), transform 0.08s var(--ease);
 }
 
-.loginBtn:hover:not(:disabled) {
-    background: #1e293b;
+.submitBtn svg {
+    transition: transform 0.18s var(--ease);
 }
 
-.loginBtn:disabled {
-    opacity: 0.65;
-    cursor: not-allowed;
+.submitBtn:hover:not(:disabled) {
+    background: var(--brand-strong);
+}
+
+.submitBtn:hover:not(:disabled) svg {
+    transform: translateX(3px);
+}
+
+.submitBtn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.submitBtn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .switchBar {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--line);
     text-align: center;
-    margin-top: 1.25rem;
-    font-size: 0.88rem;
-    color: #64748b;
+    font-size: 13px;
+    color: var(--ink-3);
 }
 
 .switchBtn {
-    background: none;
+    margin-left: 4px;
+    padding: 0;
     border: none;
-    color: #2563eb;
+    background: none;
+    color: var(--brand);
     font-weight: 600;
-    font-size: 0.88rem;
-    cursor: pointer;
-    padding: 0 4px;
 }
 
 .switchBtn:hover {
+    color: var(--brand-strong);
     text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.formNote {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 20px 0 0;
+    font-size: 12px;
+    color: var(--ink-4);
+}
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 1180px) {
+    .cover {
+        padding: 36px 40px 28px;
+    }
 }
 
 @media (max-width: 960px) {
     .container {
-        flex-direction: column;
+        grid-template-columns: 1fr;
+    }
+
+    .cover {
+        min-height: auto;
+        padding: 28px 24px 22px;
+    }
+
+    .coverMain {
+        padding: 32px 0 20px;
+    }
+
+    .coverTitle {
+        font-size: 30px;
+    }
+
+    .capList {
+        margin-top: 24px;
+    }
+
+    .capItem {
+        padding: 12px 0;
+    }
+
+    .capText p {
+        display: none;
+    }
+
+    .formSide {
         height: auto;
-        min-height: 100vh;
-        overflow: auto;
+        overflow: visible;
     }
 
-    .leftPanel {
-        padding: 2.5rem 1.5rem 1.5rem;
+    .formScroll {
+        padding: 32px 16px 40px;
+    }
+}
+
+@media (max-width: 520px) {
+    .card {
+        padding: 28px 20px 20px;
     }
 
-    .rightPanel {
-        padding: 2rem 1.25rem;
+    .twoCol {
+        grid-template-columns: 1fr;
+    }
+
+    .coverOrgSub {
+        display: none;
+    }
+
+    .coverLead {
+        display: none;
     }
 }

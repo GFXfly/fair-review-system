@@ -1,7 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import kit from '@/components/ui/kit.module.css';
+import {
+    ArrowLeftIcon,
+    BuildingIcon,
+    CheckCircleIcon,
+    CheckIcon,
+    ChevronRightIcon,
+    ClockIcon,
+    CloseIcon,
+    FileTextIcon,
+    LightbulbIcon,
+    MessageIcon,
+    SparklesIcon,
+    UserIcon,
+} from '@/components/ui/Icons';
 import styles from './FeedbackReview.module.css';
 
 interface Feedback {
@@ -33,18 +47,19 @@ interface Feedback {
     };
 }
 
+interface RiskLevelMeta {
+    text: string;
+    tone: string;
+    bar: string;
+}
+
 export default function FeedbackReviewPanel() {
-    const router = useRouter();
     const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'pending' | 'all'>('pending');
     const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null);
 
-    useEffect(() => {
-        fetchFeedbacks();
-    }, [filter]);
-
-    const fetchFeedbacks = async () => {
+    const fetchFeedbacks = useCallback(async () => {
         setLoading(true);
         try {
             const url = filter === 'pending'
@@ -61,7 +76,11 @@ export default function FeedbackReviewPanel() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filter]);
+
+    useEffect(() => {
+        fetchFeedbacks();
+    }, [fetchFeedbacks]);
 
     const handleReview = async (feedbackId: number, status: 'approved' | 'rejected', comment?: string) => {
         if (status === 'rejected' && !confirm('确定驳回此反馈？这表示AI的判断是正确的。')) {
@@ -94,10 +113,10 @@ export default function FeedbackReviewPanel() {
         }
     };
 
-    const getRiskLevelBadge = (level: string) => {
-        if (level === 'High' || level === 'high') return { text: '高风险', color: '#ef4444', bg: '#fef2f2' };
-        if (level === 'Medium' || level === 'medium') return { text: '中风险', color: '#f59e0b', bg: '#fffbeb' };
-        return { text: '低风险', color: '#6b7280', bg: '#f3f4f6' };
+    const getRiskLevelBadge = (level: string): RiskLevelMeta => {
+        if (level === 'High' || level === 'high') return { text: '高风险', tone: kit.toneHigh, bar: styles.barHigh };
+        if (level === 'Medium' || level === 'medium') return { text: '中风险', tone: kit.toneMid, bar: styles.barMid };
+        return { text: '低风险', tone: kit.toneLow, bar: styles.barLow };
     };
 
     // 从 summary 中提取文件类型
@@ -118,89 +137,111 @@ export default function FeedbackReviewPanel() {
         const riskLevel = getRiskLevelBadge(feedback.risk.level);
 
         return (
-            <div>
-                {/* 返回按钮 */}
-                <button
-                    className={styles.backBtn}
-                    onClick={() => setSelectedFeedback(null)}
-                >
-                    ← 返回列表
-                </button>
+            <div className={styles.panel}>
+                <div>
+                    <button
+                        type="button"
+                        className={`${kit.btn} ${kit.btnSm} ${kit.btnGhost} ${styles.backBtn}`}
+                        onClick={() => setSelectedFeedback(null)}
+                    >
+                        <ArrowLeftIcon size={15} />
+                        返回列表
+                    </button>
+                </div>
 
-                {/* 详情卡片 */}
-                <div className={styles.detailCard}>
+                <div className={`${kit.card} ${styles.detailCard} ${riskLevel.bar}`}>
                     {/* 文件信息 */}
                     <div className={styles.detailHeader}>
-                        <div className={styles.detailTitle}>
-                            📄 {feedback.review.fileName}
-                        </div>
-                        <div className={styles.detailMeta}>
-                            <span>👤 {feedback.user.name || feedback.user.username}</span>
-                            {feedback.user.name && <span style={{ color: '#9ca3af' }}>（{feedback.user.username}）</span>}
-                            {feedback.user.department && <span>- {feedback.user.department}</span>}
-                            <span style={{ marginLeft: '16px' }}>🕐 {new Date(feedback.createdAt).toLocaleString()}</span>
+                        <span className={styles.detailFileIcon}><FileTextIcon size={20} /></span>
+                        <div className={styles.detailHeaderText}>
+                            <h2 className={styles.detailTitle}>{feedback.review.fileName}</h2>
+                            <div className={styles.detailMeta}>
+                                <span className={styles.metaItem}>
+                                    <UserIcon size={13} />
+                                    {feedback.user.name || feedback.user.username}
+                                    {feedback.user.name && (
+                                        <span className={styles.metaMono}>@{feedback.user.username}</span>
+                                    )}
+                                </span>
+                                {feedback.user.department && (
+                                    <span className={styles.metaItem}>
+                                        <BuildingIcon size={13} />
+                                        {feedback.user.department}
+                                    </span>
+                                )}
+                                <span className={styles.metaItem}>
+                                    <ClockIcon size={13} />
+                                    <span className={styles.metaMono}>{new Date(feedback.createdAt).toLocaleString()}</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
 
                     {/* AI判断区域 */}
                     <div className={styles.detailSection}>
                         <div className={styles.sectionHeader}>
-                            <span className={styles.sectionIcon}>🤖</span>
+                            <span className={styles.sectionIcon}><SparklesIcon size={15} /></span>
                             <span>AI 判断结果</span>
-                            <span
-                                className={styles.levelBadge}
-                                style={{ background: riskLevel.bg, color: riskLevel.color }}
-                            >
+                            <span className={`${kit.badge} ${riskLevel.tone}`}>
+                                <span className={kit.dot} />
                                 {riskLevel.text}
                             </span>
                         </div>
 
-                        {feedback.risk.location && (
-                            <div className={styles.detailRow}>
-                                <div className={styles.rowLabel}>原文位置</div>
-                                <div className={styles.rowContent}>"{feedback.risk.location}"</div>
-                            </div>
-                        )}
+                        <dl className={styles.detailList}>
+                            {feedback.risk.location && (
+                                <div className={styles.detailRow}>
+                                    <dt className={styles.rowLabel}>原文位置</dt>
+                                    <dd className={styles.rowContent}>
+                                        <blockquote className={styles.quote}>{feedback.risk.location}</blockquote>
+                                    </dd>
+                                </div>
+                            )}
 
-                        <div className={styles.detailRow}>
-                            <div className={styles.rowLabel}>问题描述</div>
-                            <div className={styles.rowContent}>{feedback.risk.description}</div>
-                        </div>
-
-                        {feedback.risk.law && (
                             <div className={styles.detailRow}>
-                                <div className={styles.rowLabel}>违反条款</div>
-                                <div className={styles.rowContent}>{feedback.risk.law}</div>
+                                <dt className={styles.rowLabel}>问题描述</dt>
+                                <dd className={styles.rowContent}>{feedback.risk.description}</dd>
                             </div>
-                        )}
 
-                        {feedback.risk.suggestion && (
-                            <div className={styles.detailRow}>
-                                <div className={styles.rowLabel}>修改建议</div>
-                                <div className={styles.rowContent}>{feedback.risk.suggestion}</div>
-                            </div>
-                        )}
+                            {feedback.risk.law && (
+                                <div className={styles.detailRow}>
+                                    <dt className={styles.rowLabel}>违反条款</dt>
+                                    <dd className={`${styles.rowContent} ${styles.lawText}`}>{feedback.risk.law}</dd>
+                                </div>
+                            )}
+
+                            {feedback.risk.suggestion && (
+                                <div className={styles.detailRow}>
+                                    <dt className={styles.rowLabel}>修改建议</dt>
+                                    <dd className={styles.rowContent}>{feedback.risk.suggestion}</dd>
+                                </div>
+                            )}
+                        </dl>
                     </div>
-
 
                     {/* 操作区域 */}
                     {feedback.adminStatus === 'pending' && (
                         <div className={styles.detailActions}>
                             <div className={styles.actionHint}>
-                                💡 请根据专业知识判断AI的分析是否正确
+                                <LightbulbIcon size={15} />
+                                请根据专业知识判断 AI 的分析是否正确
                             </div>
                             <div className={styles.actionBtns}>
                                 <button
-                                    className={styles.btnApprove}
-                                    onClick={() => handleReview(feedback.id, 'approved')}
-                                >
-                                    ✓ 通过（AI 误判）
-                                </button>
-                                <button
-                                    className={styles.btnReject}
+                                    type="button"
+                                    className={`${kit.btn} ${kit.btnDanger}`}
                                     onClick={() => handleReview(feedback.id, 'rejected')}
                                 >
-                                    ✗ 驳回（AI 正确）
+                                    <CloseIcon size={15} />
+                                    驳回（AI 正确）
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${kit.btn} ${kit.btnPrimary}`}
+                                    onClick={() => handleReview(feedback.id, 'approved')}
+                                >
+                                    <CheckIcon size={15} />
+                                    通过（AI 误判）
                                 </button>
                             </div>
                         </div>
@@ -209,9 +250,15 @@ export default function FeedbackReviewPanel() {
                     {feedback.adminStatus !== 'pending' && (
                         <div className={styles.detailStatus}>
                             {feedback.adminStatus === 'approved' ? (
-                                <span className={styles.statusApproved}>✓ 已通过 - AI确实误判</span>
+                                <div className={`${kit.alert} ${kit.alertOk}`}>
+                                    <CheckCircleIcon size={15} />
+                                    <span>已通过 - AI 确实误判</span>
+                                </div>
                             ) : (
-                                <span className={styles.statusRejected}>✗ 已驳回 - AI判断正确</span>
+                                <div className={`${kit.alert} ${styles.alertMuted}`}>
+                                    <CloseIcon size={15} />
+                                    <span>已驳回 - AI 判断正确</span>
+                                </div>
                             )}
                         </div>
                     )}
@@ -222,24 +269,37 @@ export default function FeedbackReviewPanel() {
 
     // 列表视图
     return (
-        <div>
+        <div className={styles.panel}>
             {/* 标题和过滤器 */}
             <div className={styles.listHeader}>
-                <h1 className={styles.pageTitle}>
-                    风险反馈审核
-                    {pendingCount > 0 && (
-                        <span className={styles.badge}>{pendingCount} 条待审核</span>
-                    )}
-                </h1>
-                <div className={styles.filterGroup}>
+                <div>
+                    <div className={styles.eyebrow}>反馈审核</div>
+                    <h1 className={styles.pageTitle}>
+                        风险反馈审核
+                        {pendingCount > 0 && (
+                            <span className={`${kit.badge} ${kit.toneSeal}`}>
+                                <span className={kit.dot} />
+                                {pendingCount} 条待审核
+                            </span>
+                        )}
+                    </h1>
+                    <p className={styles.pageSub}>复核用户对 AI 风险判断提出的异议，确认是否属于误判</p>
+                </div>
+                <div className={kit.segment} role="tablist" aria-label="反馈筛选">
                     <button
-                        className={filter === 'pending' ? styles.filterBtnActive : styles.filterBtn}
+                        type="button"
+                        role="tab"
+                        aria-selected={filter === 'pending'}
+                        className={`${kit.segmentItem} ${filter === 'pending' ? kit.segmentActive : ''}`}
                         onClick={() => setFilter('pending')}
                     >
                         待审核
                     </button>
                     <button
-                        className={filter === 'all' ? styles.filterBtnActive : styles.filterBtn}
+                        type="button"
+                        role="tab"
+                        aria-selected={filter === 'all'}
+                        className={`${kit.segmentItem} ${filter === 'all' ? kit.segmentActive : ''}`}
                         onClick={() => setFilter('all')}
                     >
                         全部
@@ -248,75 +308,103 @@ export default function FeedbackReviewPanel() {
             </div>
 
             {/* 列表 */}
-            {loading ? (
-                <div className={styles.emptyState}>加载中...</div>
-            ) : feedbacks.length === 0 ? (
-                <div className={styles.emptyState}>
-                    {filter === 'pending' ? '🎉 暂无待审核反馈' : '暂无反馈数据'}
-                </div>
-            ) : (
-                <div className={styles.feedbackTable}>
-                    <div className={styles.tableHeader}>
-                        <div className={styles.colFile}>文件名</div>
-                        <div className={styles.colType}>文件类型</div>
-                        <div className={styles.colUsername}>用户名</div>
-                        <div className={styles.colName}>姓名</div>
-                        <div className={styles.colRisk}>风险等级</div>
-                        <div className={styles.colTime}>时间</div>
-                        <div className={styles.colStatus}>状态</div>
-                        <div className={styles.colAction}>操作</div>
+            <div className={`${kit.card} ${styles.listCard}`}>
+                {loading ? (
+                    <div className={kit.empty}>
+                        <span className={kit.spinner} />
+                        <span className={kit.emptyDesc}>加载中...</span>
                     </div>
-                    {feedbacks.map((feedback) => {
-                        const riskLevel = getRiskLevelBadge(feedback.risk.level);
-                        return (
-                            <div key={feedback.id} className={styles.tableRow}>
-                                <div className={styles.colFile} title={feedback.review.fileName}>
-                                    📄 {feedback.review.fileName.length > 50
-                                        ? feedback.review.fileName.substring(0, 50) + '...'
-                                        : feedback.review.fileName}
-                                </div>
-                                <div className={styles.colType}>
-                                    {getDocType(feedback.review.summary)}
-                                </div>
-                                <div className={styles.colUsername}>
-                                    {feedback.user.username}
-                                </div>
-                                <div className={styles.colName}>
-                                    {feedback.user.name}
-                                </div>
-                                <div className={styles.colRisk}>
-                                    <span
-                                        className={styles.riskBadge}
-                                        style={{ background: riskLevel.bg, color: riskLevel.color }}
-                                    >
-                                        {riskLevel.text}
-                                    </span>
-                                </div>
-                                <div className={styles.colTime}>
-                                    {new Date(feedback.createdAt).toLocaleDateString()}
-                                </div>
-                                <div className={styles.colStatus}>
-                                    {feedback.adminStatus === 'pending' ? (
-                                        <span className={styles.statusPending}>待审核</span>
-                                    ) : feedback.adminStatus === 'approved' ? (
-                                        <span className={styles.statusApprovedSmall}>已通过</span>
-                                    ) : (
-                                        <span className={styles.statusRejectedSmall}>已驳回</span>
-                                    )}
-                                </div>
-                                <div className={styles.colAction}>
-                                    <button
-                                        className={styles.viewBtn}
-                                        onClick={() => setSelectedFeedback(feedback)}
-                                    >
-                                        查看详情
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+                ) : feedbacks.length === 0 ? (
+                    <div className={kit.empty}>
+                        <span className={kit.emptyIcon}>
+                            {filter === 'pending' ? <CheckCircleIcon size={24} /> : <MessageIcon size={24} />}
+                        </span>
+                        <span className={kit.emptyTitle}>
+                            {filter === 'pending' ? '暂无待审核反馈' : '暂无反馈数据'}
+                        </span>
+                    </div>
+                ) : (
+                    <div className={kit.tableWrap}>
+                        <table className={kit.table}>
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                    <th>文件类型</th>
+                                    <th>用户名</th>
+                                    <th>姓名</th>
+                                    <th>风险等级</th>
+                                    <th>时间</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {feedbacks.map((feedback) => {
+                                    const riskLevel = getRiskLevelBadge(feedback.risk.level);
+                                    return (
+                                        <tr key={feedback.id}>
+                                            <td>
+                                                <div className={styles.fileCell} title={feedback.review.fileName}>
+                                                    <span className={`${styles.riskBar} ${riskLevel.bar}`} aria-hidden="true" />
+                                                    <FileTextIcon size={15} />
+                                                    <span className={styles.fileName}>
+                                                        {feedback.review.fileName.length > 50
+                                                            ? feedback.review.fileName.substring(0, 50) + '...'
+                                                            : feedback.review.fileName}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className={`${kit.badge} ${kit.badgeSquare} ${kit.toneMuted}`}>
+                                                    {getDocType(feedback.review.summary)}
+                                                </span>
+                                            </td>
+                                            <td className={kit.cellNum}>{feedback.user.username}</td>
+                                            <td className={kit.cellMain}>{feedback.user.name}</td>
+                                            <td>
+                                                <span className={`${kit.badge} ${riskLevel.tone}`}>
+                                                    {riskLevel.text}
+                                                </span>
+                                            </td>
+                                            <td className={kit.cellNum}>
+                                                {new Date(feedback.createdAt).toLocaleDateString()}
+                                            </td>
+                                            <td>
+                                                {feedback.adminStatus === 'pending' ? (
+                                                    <span className={`${kit.badge} ${kit.toneMid}`}>
+                                                        <span className={kit.dot} />
+                                                        待审核
+                                                    </span>
+                                                ) : feedback.adminStatus === 'approved' ? (
+                                                    <span className={`${kit.badge} ${kit.toneOk}`}>
+                                                        <span className={kit.dot} />
+                                                        已通过
+                                                    </span>
+                                                ) : (
+                                                    <span className={`${kit.badge} ${kit.toneMuted}`}>
+                                                        <span className={kit.dot} />
+                                                        已驳回
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <button
+                                                    type="button"
+                                                    className={`${kit.btn} ${kit.btnXs} ${kit.btnSecondary}`}
+                                                    onClick={() => setSelectedFeedback(feedback)}
+                                                >
+                                                    查看详情
+                                                    <ChevronRightIcon size={13} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

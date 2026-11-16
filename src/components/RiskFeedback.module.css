@@ -1,58 +1,122 @@
+/* 风险判断准确性反馈（审查详情页 RiskDetail 底部） */
 .feedbackSection {
-    margin-top: 24px;
-    padding: 20px;
-    border-top: 1px solid #e5e7eb;
-    background: #f9fafb;
-    border-radius: 8px;
+    margin-top: 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+}
+
+.feedbackHead {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.feedbackIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.feedbackText {
+    min-width: 0;
 }
 
 .feedbackPrompt {
-    font-size: 14px;
-    color: #6b7280;
-    margin-bottom: 12px;
-    text-align: center;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-1);
+    line-height: 1.4;
+}
+
+.feedbackHint {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--ink-4);
 }
 
 .feedbackButtons {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 }
 
 .feedbackBtn {
-    padding: 8px 20px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: white;
-    color: #374151;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: var(--shadow-xs);
+    transition: background-color 0.16s var(--ease), border-color 0.16s var(--ease), color 0.16s var(--ease);
 }
 
-.feedbackBtn:hover:not(:disabled) {
-    background: #f3f4f6;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.feedbackBtn:active:not(:disabled) {
+    transform: translateY(1px);
 }
 
 .feedbackBtn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    background: #f9fafb;
+}
+
+.feedbackBtnPositive:hover:not(:disabled) {
+    border-color: var(--ok-line);
+    background: var(--ok-bg);
+    color: var(--ok);
 }
 
 .feedbackBtnNegative:hover:not(:disabled) {
-    border-color: #ef4444;
-    color: #ef4444;
+    border-color: var(--risk-high-line);
+    background: var(--risk-high-bg);
+    color: var(--risk-high);
+}
+
+.spin {
+    animation: feedbackSpin 0.8s linear infinite;
+}
+
+@keyframes feedbackSpin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .feedbackComplete {
-    text-align: center;
-    font-size: 14px;
-    color: #10b981;
-    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 13.5px;
+    font-weight: 500;
+    padding: 4px 0;
+}
+
+.feedbackCompleteOk {
+    color: var(--ok);
+}
+
+.feedbackCompleteWarn {
+    color: var(--risk-mid);
+}
+
+.feedbackCompleteMuted {
+    color: var(--ink-3);
 }

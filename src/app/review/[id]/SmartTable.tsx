@@ -78,8 +78,8 @@ export default function SmartTable({ rows, maxCols }: SmartTableProps) {
                                     rowSpan={cell.rowSpan}
                                     style={{
                                         textAlign: 'center',
-                                        background: '#9ca3af',
-                                        color: 'white',
+                                        background: 'var(--bg-subtle)',
+                                        color: 'var(--ink-1)',
                                         fontWeight: 600,
                                     }}
                                 >
@@ -103,7 +103,7 @@ export default function SmartTable({ rows, maxCols }: SmartTableProps) {
                                         rowSpan={cell.rowSpan}
                                         style={{
                                             textAlign: isSectionHeader ? 'center' : cIdx === 0 ? 'center' : 'left',
-                                            background: isSectionHeader ? '#e5e7eb' : 'transparent',
+                                            background: isSectionHeader ? 'var(--bg-hover)' : 'transparent',
                                             fontWeight: isSectionHeader ? 600 : 'normal',
                                             verticalAlign: 'middle',
                                         }}

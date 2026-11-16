@@ -178,7 +178,7 @@ function DashboardContent() {
 
 export default function DashboardPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div className={styles.loadingScreen}>正在载入工作台…</div>}>
             <DashboardContent />
         </Suspense>
     );

@@ -3,24 +3,36 @@
 }
 
 .dropzone {
-    border: 2px dashed #eaeaea;
-    border-radius: 8px;
-    padding: 2rem;
-    text-align: center;
-    transition: all 0.2s ease;
-    background: #fff;
-    cursor: pointer;
-    height: 100%;
-    min-height: 120px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: relative;
+    border: 1.5px dashed var(--line-strong);
+    border-radius: 12px;
+    background:
+        linear-gradient(rgba(43, 84, 75, 0.035) 1px, transparent 1px) 0 0 / 22px 22px,
+        linear-gradient(90deg, rgba(43, 84, 75, 0.035) 1px, transparent 1px) 0 0 / 22px 22px,
+        #FBFAF7;
+    color: var(--brand);
+    transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
-.dropzone:hover,
-.dragging {
-    border-color: #0070f3;
-    background: #f0f7ff;
+.dropzone:hover {
+    border-color: var(--brand-line);
+    background-color: var(--brand-tint);
+}
+
+.dropzone:hover .icon {
+    transform: translateY(-3px);
+}
+
+.dragging,
+.dragging:hover {
+    border-color: var(--brand);
+    border-style: solid;
+    background-color: var(--brand-tint);
+    box-shadow: 0 0 0 4px rgba(43, 84, 75, 0.1) inset;
+}
+
+.dragging .icon {
+    transform: translateY(-4px) scale(1.04);
 }
 
 .hiddenInput {
@@ -28,39 +40,64 @@
 }
 
 .label {
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 6px;
+    min-height: 220px;
+    padding: 36px 24px;
+    text-align: center;
+    cursor: pointer;
 }
 
 .icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    display: inline-flex;
+    margin-bottom: 10px;
+    color: var(--brand);
+    transition: transform 0.25s var(--ease);
+}
+
+.title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-1);
+}
+
+.browse {
+    color: var(--brand);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgba(43, 84, 75, 0.35);
+    text-underline-offset: 4px;
 }
 
 .hint {
-    font-size: 0.8rem;
-    color: #999;
-    margin-top: 0.5rem;
+    font-size: 12.5px;
+    color: var(--ink-4);
+}
+
+.hint b {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--ink-3);
 }
 
 .fileInfo {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 6px;
 }
 
 .fileName {
-    font-weight: 500;
-    color: #333;
+    font-weight: 600;
+    color: var(--ink-1);
 }
 
 .fileSize {
-    font-size: 0.8rem;
-    color: #666;
-    margin-top: 0.2rem;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--ink-3);
 }

@@ -1,118 +1,115 @@
-/* Layout */
+/* =====================================================================
+   文书审查详情页 · 双栏审查工作台
+   左：灰色桌布 + 仿真 A4 白纸（docx-preview / mammoth 原样渲染）
+   右：审查意见面板（风险分级统计 + 风险卡片 + RiskDetail 详情）
+   ===================================================================== */
+
+/* ---------- Layout ---------- */
 .container {
     height: 100vh;
-    /* Fixed height to prevent body scroll */
     display: flex;
     flex-direction: column;
-    background-color: #f3f4f6;
-    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-canvas);
+    font-family: var(--font-sans);
+    color: var(--ink-1);
     overflow: hidden;
-    /* No body scroll */
 }
 
-/* Header */
+/* ---------- 顶部工具栏 ---------- */
 .header {
-    height: 64px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    height: 58px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 24px;
+    gap: 16px;
+    padding: 0 20px;
     flex-shrink: 0;
     z-index: 20;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-    transition: all 0.3s ease;
+    transition: box-shadow 0.2s var(--ease);
 }
 
 .headerCompact {
-    height: 52px;
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.1);
-}
-
-.backLink {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #6b7280;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    padding: 6px 10px;
-    border-radius: 6px;
-    transition: all 0.2s;
-}
-
-.backLink:hover {
-    color: #111827;
-    background: #f3f4f6;
+    box-shadow: 0 1px 0 var(--line), 0 6px 16px -10px rgba(24, 28, 27, 0.18);
 }
 
 .fileInfo {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+}
+
+.backLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 10px 0 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-3);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.16s var(--ease), color 0.16s var(--ease);
+}
+
+.backLink:hover {
+    color: var(--ink-1);
+    background: var(--bg-subtle);
+}
+
+.headerDivider {
+    width: 1px;
+    height: 20px;
+    background: var(--line);
+    flex-shrink: 0;
+}
+
+.headerSeal {
+    flex-shrink: 0;
 }
 
 .fileName {
-    font-weight: 600;
-    color: #111827;
-    font-size: 16px;
-    letter-spacing: -0.01em;
+    margin: 0;
+    min-width: 0;
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 16.5px;
+    letter-spacing: 0.02em;
+    color: var(--ink-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.fileTag {
-    background: #eff6ff;
-    color: #2563eb;
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 999px;
+.headerBadges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.badgeNum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    border: 1px solid #dbeafe;
 }
 
 .headerActions {
     display: flex;
-    gap: 12px;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
 }
 
-.actionBtn {
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid #e5e7eb;
-    background: white;
-    color: #374151;
-    transition: all 0.2s;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.actionBtn:hover {
-    background: #f9fafb;
-    border-color: #d1d5db;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.primaryBtn {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    color: white;
-    border: none;
-    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
-}
-
-.primaryBtn:hover {
-    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-    box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);
-}
-
-/* Main Split View */
+/* ---------- Main Split View ---------- */
 .main {
     flex: 1;
     display: flex;
@@ -121,12 +118,14 @@
     min-height: 0;
 }
 
-/* Left: Document Viewer */
+/* ---------- 左：桌布 + 仿真 A4 白纸 ---------- */
 .docPanel {
     flex: 1;
     flex-shrink: 1;
-    background: #f3f4f6;
-    padding: 40px;
+    background: var(--bg-sunken);
+    background-image: radial-gradient(rgba(24, 28, 27, 0.035) 1px, transparent 1px);
+    background-size: 16px 16px;
+    padding: 36px 40px 56px;
     overflow-y: auto;
     overflow-x: hidden;
     display: flex;
@@ -136,22 +135,36 @@
 }
 
 .docPaper {
-    background: white;
+    position: relative;
+    background: #FFFFFF;
     width: 100%;
-    max-width: 800px;
+    max-width: 794px; /* A4 @96dpi */
     margin: 0 auto;
-    /* Extend to at least full height of container, or content height */
     min-height: 100%;
-    padding: 60px 80px;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    color: #1f2937;
+    padding: 64px 76px;
+    border: 1px solid rgba(24, 28, 27, 0.06);
+    border-radius: 2px;
+    box-shadow:
+        0 1px 1px rgba(24, 28, 27, 0.04),
+        0 2px 4px rgba(24, 28, 27, 0.04),
+        0 18px 40px -16px rgba(24, 28, 27, 0.22);
+    color: var(--ink-1);
     line-height: 1.8;
     font-size: 16px;
     box-sizing: border-box;
     overflow-wrap: break-word;
-    border-radius: 2px;
     /* Prevent highlights from overflowing the paper horizontally, but allow vertical growth */
     overflow-x: hidden;
+}
+
+.docEmpty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 48px 20px;
+    color: var(--ink-4);
+    font-size: 14px;
 }
 
 .docTitle {
@@ -159,8 +172,8 @@
     font-size: 26px;
     font-weight: 700;
     margin-bottom: 24px;
-    font-family: 'SimSun', serif;
-    color: #000;
+    font-family: "SimSun", var(--font-serif);
+    color: var(--ink-1);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -171,240 +184,640 @@
 .docParagraph {
     margin-bottom: 6px;
     text-align: justify;
-    /* Keep justify for formal look, but handle wrapping better */
-    font-family: 'SimSun', serif;
+    font-family: "SimSun", var(--font-serif);
     white-space: pre-wrap;
-    /* Use 'anywhere' to force break on long strings if needed */
     overflow-wrap: anywhere;
     word-break: normal;
-    /* Let browser handle CJK line breaks normally */
     max-width: 100%;
     hyphens: auto;
-    color: #333;
+    color: var(--ink-2);
     font-size: 18px;
     line-height: 1.5;
-    /* Ensure padding/border doesn't increase width */
     box-sizing: border-box;
 }
 
+/* mammoth 回退模式：有风险关联的段落（琥珀）/ 当前选中段落（朱砂） */
 .highlight {
-    background-color: rgba(254, 243, 199, 0.6);
-    border-bottom: 2px solid #f59e0b;
+    background-color: rgba(168, 106, 18, 0.09);
+    box-shadow: inset 0 -2px 0 rgba(168, 106, 18, 0.45);
+    border-radius: 2px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 
 .highlight:hover {
-    background-color: rgba(254, 243, 199, 1);
+    background-color: rgba(168, 106, 18, 0.16);
 }
 
-.highlight.active {
-    background-color: rgba(252, 165, 165, 0.3);
-    border-bottom-color: #ef4444;
+.highlightActive,
+.highlight.highlightActive {
+    background-color: rgba(200, 75, 49, 0.12);
+    box-shadow: inset 0 -2px 0 rgba(200, 75, 49, 0.65);
 }
 
-/* Right: Review Panel */
+/* ---------- 右：审查意见面板 ---------- */
 .reviewPanel {
-    width: clamp(340px, 30vw, 440px);
-    flex: 0 1 clamp(340px, 30vw, 440px);
-    background: white;
-    border-left: 1px solid rgba(0, 0, 0, 0.05);
+    width: clamp(360px, 32vw, 460px);
+    flex: 0 1 clamp(360px, 32vw, 460px);
+    background: var(--bg-surface);
+    border-left: 1px solid var(--line);
     display: flex;
     flex-direction: column;
     flex-shrink: 1;
     min-width: 0;
     overflow: hidden;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.02);
     z-index: 10;
     min-height: 0;
 }
 
 .panelTabs {
     display: flex;
-    border-bottom: 1px solid #f3f4f6;
-    padding: 0 16px;
-    background: white;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-faint);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+}
+
+.panelSegment {
+    width: 100%;
 }
 
 .tab {
     flex: 1;
-    padding: 16px 8px;
-    text-align: center;
-    font-size: 14px;
-    font-weight: 500;
-    color: #6b7280;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-}
-
-.tab:hover {
-    color: #374151;
 }
 
 .tab.active {
-    color: #2563eb;
-    border-bottom-color: #2563eb;
     font-weight: 600;
+}
+
+.tabCount {
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--bg-subtle);
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+    line-height: 18px;
+    text-align: center;
+}
+
+.active .tabCount {
+    background: var(--brand-soft);
+    color: var(--brand-strong);
 }
 
 .panelContent {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
-    background: #fafafa;
-    /* Slightly distinct background for content area */
+    padding: 16px;
+    background: var(--bg-canvas);
     min-height: 0;
 }
 
-/* Risk Cards */
+/* ---------- 全文摘要 ---------- */
+.summaryView {
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 18px 18px 16px;
+    box-shadow: var(--shadow-xs);
+}
+
+.summaryHead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.summaryTitle {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink-1);
+}
+
+.summaryBody {
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--ink-2);
+    background: var(--bg-hover);
+    border: 1px solid var(--line-faint);
+    border-left: 2px solid var(--brand-line);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    white-space: pre-wrap;
+}
+
+.summaryNote {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 12.5px;
+    color: var(--ink-4);
+}
+
+/* ---------- 风险列表 ---------- */
 .riskList {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
+.levelHigh {
+    --level-color: var(--risk-high);
+    --level-bg: var(--risk-high-bg);
+    --level-line: var(--risk-high-line);
+}
+
+.levelMid {
+    --level-color: var(--risk-mid);
+    --level-bg: var(--risk-mid-bg);
+    --level-line: var(--risk-mid-line);
+}
+
+.levelLow {
+    --level-color: var(--risk-low);
+    --level-bg: var(--risk-low-bg);
+    --level-line: var(--risk-low-line);
+}
+
+/* 无需审查 */
+.ignoredCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 28px 22px 24px;
+    background: var(--bg-surface);
+    border: 1px solid var(--ok-line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+}
+
+.ignoredIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 14px;
+    border-radius: 50%;
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.ignoredTitle {
+    margin: 0 0 8px;
+    font-family: var(--font-serif);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ink-1);
+    letter-spacing: 0.02em;
+}
+
+.ignoredReason {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--ink-3);
+}
+
+/* 风险分级统计条 */
+.statsBar {
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px 14px;
+    box-shadow: var(--shadow-xs);
+}
+
+.statsHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.statsTotal {
+    font-size: 12.5px;
+    color: var(--ink-3);
+}
+
+.statsTotalNum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink-1);
+    margin: 0 2px;
+}
+
+.statsPills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.statPill {
+    height: 26px;
+    padding: 0 10px;
+}
+
+.statPillZero {
+    opacity: 0.55;
+}
+
+.statNum {
+    margin-left: 2px;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.statsTrack {
+    display: flex;
+    gap: 2px;
+    height: 4px;
+    margin-top: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--bg-subtle);
+}
+
+.statsSeg {
+    flex-basis: 0;
+    background: var(--level-color);
+    opacity: 0.85;
+}
+
+/* 风险卡片 */
 .riskCard {
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 16px;
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 14px 14px 12px 18px;
     cursor: pointer;
-    transition: all 0.2s;
-    background: white;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-xs);
+    overflow: hidden;
+    outline: none;
+    transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), background-color 0.16s var(--ease), transform 0.08s var(--ease);
+}
+
+.riskCard::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--level-color, var(--risk-mid));
 }
 
 .riskCard:hover {
-    border-color: #2563eb;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-    transform: translateY(-1px);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-md);
 }
 
-.riskCard.active {
-    border-color: #ef4444;
-    background: #fffafa;
-    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+.riskCard:hover .cardFoot {
+    color: var(--brand);
+}
+
+.riskCard:focus-visible {
+    border-color: var(--brand-line);
+    box-shadow: var(--ring);
+}
+
+.riskCard:active {
+    transform: translateY(1px);
+    background: var(--bg-hover);
+}
+
+.riskCardActive {
+    border-color: var(--level-line, var(--line-strong));
+    background: linear-gradient(90deg, var(--level-bg, var(--bg-hover)) 0, var(--bg-surface) 55%);
 }
 
 .cardHeader {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 8px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
 }
 
-.riskType {
+.confidence {
     font-size: 12px;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.confidenceNum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
-    color: #ef4444;
-    background: #fee2e2;
-    padding: 2px 6px;
-    border-radius: 4px;
+    color: var(--ink-2);
 }
 
-.riskLevel {
-    font-size: 12px;
-    color: #6b7280;
+.cardIndex {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+    color: var(--ink-4);
+    letter-spacing: 0.04em;
 }
 
 .riskTitle {
-    font-size: 14px;
+    font-size: 14.5px;
     font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 8px;
+    color: var(--ink-1);
+    line-height: 1.5;
+    margin-bottom: 10px;
 }
 
 .riskSnippet {
-    font-size: 13px;
-    color: #4b5563;
-    background: #f3f4f6;
-    padding: 10px;
-    border-radius: 6px;
-    border-left: 3px solid #d1d5db;
-    margin-bottom: 0;
-    line-height: 1.5;
-    font-style: italic;
+    margin: 0;
+    padding: 9px 12px;
+    font-family: var(--font-serif);
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: var(--ink-2);
+    background: var(--bg-hover);
+    border-left: 2px solid var(--level-line, var(--line-strong));
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
-/* Detail View (Inside Panel) */
+.cardFoot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--ink-4);
+    transition: color 0.16s var(--ease);
+}
+
+/* ---------- 风险详情（RiskDetail） ---------- */
+.riskDetail {
+    background: var(--bg-surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+    padding: 10px 18px 18px;
+    animation: detailIn 0.22s var(--ease);
+}
+
+@keyframes detailIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.detailTopbar {
+    display: flex;
+    align-items: center;
+    margin: 0 -8px 8px;
+}
+
+.detailHero {
+    position: relative;
+    padding: 4px 0 16px 14px;
+}
+
+.detailHero::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 18px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--level-color, var(--risk-mid));
+}
+
+.detailBadges {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.detailHeading {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    color: var(--ink-1);
+}
+
 .detailSection {
-    margin-bottom: 24px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line-faint);
 }
 
 .detailTitle {
-    font-size: 12px;
-    font-weight: 600;
-    color: #9ca3af;
-    text-transform: uppercase;
-    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-2);
+}
+
+.detailTitleIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--brand-tint);
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.titleTag {
+    height: 20px;
+    padding: 0 7px;
+    font-size: 11.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.detailQuote {
+    margin: 0;
+    padding: 12px 14px;
+    font-family: var(--font-serif);
+    font-size: 14.5px;
+    line-height: 1.85;
+    color: var(--ink-1);
+    background: var(--bg-hover);
+    border-left: 2px solid var(--seal);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    white-space: pre-wrap;
 }
 
 .detailContent {
     font-size: 14px;
-    color: #374151;
-    line-height: 1.6;
+    color: var(--ink-2);
+    line-height: 1.85;
+    white-space: pre-wrap;
+}
+
+.detailMuted {
+    font-size: 13.5px;
+    color: var(--ink-4);
+    padding: 2px 0;
 }
 
 .lawBox {
-    background: #eff6ff;
-    border: 1px solid #dbeafe;
-    border-left: 4px solid #2563eb;
-    padding: 16px;
-    border-radius: 8px;
+    background: var(--brand-tint);
+    border: 1px solid var(--brand-line);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    font-family: var(--font-serif);
     font-size: 14px;
-    color: #1e40af;
-    line-height: 1.7;
-    font-family: 'SimSun', serif;
+    color: var(--brand-deep);
+    line-height: 1.8;
+}
+
+.lawLine {
+    margin: 0;
+}
+
+.lawLine + .lawLine {
+    margin-top: 8px;
 }
 
 .caseBox {
-    background: #fff7ed;
-    border: 1px solid #ffedd5;
-    border-left: 4px solid #ea580c;
-    padding: 16px;
-    border-radius: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-surface);
+}
+
+.caseBoxHead {
+    padding: 7px 12px;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--line-faint);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+}
+
+.caseBoxBody {
+    padding: 12px 14px;
+    font-family: var(--font-serif);
     font-size: 14px;
-    color: #9a3412;
-    line-height: 1.7;
-    font-family: 'SimSun', serif;
+    line-height: 1.8;
+    color: var(--ink-2);
+}
+
+.caseBoxBody p {
+    margin: 0 0 8px;
+}
+
+.caseBoxBody p:last-child {
+    margin-bottom: 0;
+}
+
+.debateList {
+    display: grid;
+    gap: 10px;
+}
+
+.debateItem {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 11px 14px;
+    background: var(--bg-hover);
+}
+
+.debateRuling {
+    background: var(--brand-tint);
+    border-color: var(--brand-line);
+}
+
+.debateLabel {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    margin-bottom: 6px;
+}
+
+.debateRuling .debateLabel {
+    color: var(--brand-strong);
+}
+
+.debateText {
+    font-size: 13.5px;
+    color: var(--ink-2);
+    line-height: 1.8;
+    white-space: pre-wrap;
 }
 
 .suggestionBox {
-    background: #f0fdf4;
-    border: 1px solid #dcfce7;
-    border-left: 4px solid #16a34a;
-    padding: 16px;
-    border-radius: 8px;
+    background: var(--ok-bg);
+    border: 1px solid var(--ok-line);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
     font-size: 14px;
-    color: #166534;
-    line-height: 1.7;
+    color: #24563D;
+    line-height: 1.85;
+    white-space: pre-wrap;
 }
 
-.emptyState {
-    text-align: center;
-    color: #9ca3af;
-    margin-top: 40px;
-}
-
+/* ---------- 响应式 ---------- */
 @media (max-width: 1280px) {
     .docPanel {
         padding: 24px;
     }
 
     .docPaper {
-        max-width: 720px;
-        padding: 32px 40px;
+        padding: 40px 44px;
     }
 
     .header {
         padding: 0 16px;
     }
+
+    .headerSeal {
+        display: none;
+    }
 }
 
 @media (max-width: 1024px) {
+    .container {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+    }
+
     .main {
         flex-direction: column;
         overflow: visible;
@@ -418,13 +831,18 @@
         width: 100%;
         max-width: none;
         border-left: none;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--line);
         flex: none;
+    }
+
+    .actionLabel {
+        display: none;
     }
 }
 
 @media (max-width: 640px) {
     .header {
+        height: auto;
         flex-wrap: wrap;
         gap: 8px;
         padding: 8px 12px;
@@ -434,17 +852,21 @@
         flex-wrap: wrap;
     }
 
+    .headerDivider {
+        display: none;
+    }
+
     .docPaper {
         padding: 24px 20px;
     }
 }
 
-/* Markdown Tables */
+/* ---------- Markdown / Smart Tables ---------- */
 .markdownTableWrapper {
     width: 100%;
     overflow-x: auto;
     margin: 16px 0;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-sans);
 }
 
 .markdownTableWrapper table {
@@ -452,25 +874,24 @@
     width: 100%;
     font-size: 14px;
     line-height: 1.5;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--line);
 }
 
 .markdownTableWrapper th {
-    background-color: #f9fafb;
+    background-color: var(--bg-subtle);
     font-weight: 600;
-    color: #111827;
+    color: var(--ink-1);
     text-align: left;
-    padding: 12px 16px;
-    border-bottom: 2px solid #e5e7eb;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line-strong);
 }
 
 .markdownTableWrapper td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #e5e7eb;
-    color: #374151;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line-faint);
+    color: var(--ink-2);
     vertical-align: top;
     min-width: 120px;
-    /* Prevent squashing */
 }
 
 .markdownTableWrapper tr:last-child td {
@@ -478,16 +899,16 @@
 }
 
 .markdownTableWrapper tr:nth-child(even) {
-    background-color: #fcfcfc;
+    background-color: var(--bg-hover);
 }
 
-/* HTML Content Wrapper (Public Document Standard) */
+/* ---------- HTML Content Wrapper（公文版式，供 docx-preview / mammoth 共用） ---------- */
 .htmlContent {
     font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
     font-size: 16pt;
     /* 三号 */
     line-height: 1.6;
-    color: #333;
+    color: var(--ink-1);
 }
 
 .htmlContent :global(p) {
@@ -504,9 +925,7 @@
     width: 100%;
     border-collapse: collapse;
     font-family: "SimSun", "Songti SC", "宋体", serif;
-    /* 表格通常用宋体 */
     font-size: 14pt;
-    /* 四号或小四，比正文稍小 */
 }
 
 .htmlContent :global(table p),
@@ -524,9 +943,7 @@
 .htmlContent :global(h1) {
     font-family: "FZXiaoBiaoSong-B05S", "方正小标宋简体", "SimSun", serif;
     font-size: 18pt;
-    /* 小二号 */
     font-weight: normal;
-    /* 不加粗 */
     text-align: center;
     margin-top: 0;
     margin-bottom: 0;
@@ -538,9 +955,7 @@
 .htmlContent :global(h2) {
     font-family: "SimHei", "STHeiti", "黑体", sans-serif;
     font-size: 16pt;
-    /* 三号 */
     font-weight: normal;
-    /* 不加粗 */
     text-indent: 2em;
     text-align: left;
     margin-top: 0;
@@ -552,9 +967,7 @@
 .htmlContent :global(h3) {
     font-family: "KaiTi", "STKaiti", "楷体", "KaiTi_GB2312", serif;
     font-size: 16pt;
-    /* 三号 */
     font-weight: normal;
-    /* 不加粗 */
     text-indent: 2em;
     text-align: left;
     margin-top: 0;
@@ -568,9 +981,7 @@
 .htmlContent :global(h6) {
     font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
     font-size: 16pt;
-    /* 三号 */
     font-weight: normal;
-    /* 不加粗 */
     text-indent: 2em;
     text-align: left;
     margin-top: 0;
@@ -578,15 +989,32 @@
     line-height: 1.6;
 }
 
-/* Risk highlighting in HTML content */
-.htmlContent :global(mark.risk-highlight) {
-    background-color: rgba(252, 165, 165, 0.5);
+/* ---------- 风险高亮（highlight-utils.ts 生成的 mark.risk-highlight） ----------
+   highlight-utils 会在 <mark> 上写入内联 background-color（旧粉红色），
+   此处用 !important 统一覆盖为朱砂半透明底 + 下划线，类名与逻辑保持不变。 */
+.htmlContent :global(mark.risk-highlight),
+.docPaper :global(mark.risk-highlight) {
+    background-color: rgba(200, 75, 49, 0.16) !important;
+    color: inherit;
     padding: 2px 0;
     border-radius: 2px;
+    box-shadow: inset 0 -2px 0 rgba(200, 75, 49, 0.6);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s var(--ease);
+    animation: riskMarkIn 1.2s var(--ease);
 }
 
-.htmlContent :global(mark.risk-highlight:hover) {
-    background-color: rgba(252, 165, 165, 0.8);
+.htmlContent :global(mark.risk-highlight:hover),
+.docPaper :global(mark.risk-highlight:hover) {
+    background-color: rgba(200, 75, 49, 0.26) !important;
+}
+
+@keyframes riskMarkIn {
+    0% {
+        box-shadow: inset 0 -2px 0 rgba(200, 75, 49, 0.6), 0 0 0 4px rgba(200, 75, 49, 0.22);
+    }
+
+    100% {
+        box-shadow: inset 0 -2px 0 rgba(200, 75, 49, 0.6), 0 0 0 0 rgba(200, 75, 49, 0);
+    }
 }

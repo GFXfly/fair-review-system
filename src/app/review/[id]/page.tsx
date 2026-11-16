@@ -10,11 +10,26 @@ import { findMatchingParagraphIds, highlightTextInNode, clearHighlights } from '
 import { exportReviewReport, type RiskItem, type RiskLevel } from './export-utils';
 import SmartTable from './SmartTable';
 import RiskDetail from './RiskDetail';
+import kit from '@/components/ui/kit.module.css';
+import BrandSeal from '@/components/ui/BrandSeal';
+import {
+    ArrowLeftIcon,
+    CheckCircleIcon,
+    CheckIcon,
+    ChevronRightIcon,
+    DownloadIcon,
+    FileTextIcon,
+    ScaleLawIcon,
+    SearchIcon,
+    SparklesIcon,
+} from '@/components/ui/Icons';
 
-const LEVEL_BADGE: Record<RiskLevel, { label: string }> = {
-    high: { label: '🔴 高风险' },
-    medium: { label: '🟡 疑似风险' },
-    low: { label: '🔵 低风险' },
+const LEVEL_ORDER: RiskLevel[] = ['high', 'medium', 'low'];
+
+const LEVEL_META: Record<RiskLevel, { label: string; tone: string; cls: string }> = {
+    high: { label: '高风险', tone: kit.toneHigh, cls: styles.levelHigh },
+    medium: { label: '疑似风险', tone: kit.toneMid, cls: styles.levelMid },
+    low: { label: '低风险', tone: kit.toneLow, cls: styles.levelLow },
 };
 
 function normalizeLevel(raw: unknown): RiskLevel {
@@ -36,6 +51,8 @@ export default function ReviewPage() {
     const id = params?.id as string;
 
     const [activeRiskId, setActiveRiskId] = useState<string | null>(null);
+    // 从详情返回列表时，标记上一次查看的风险卡片（纯视觉态）
+    const [lastRiskId, setLastRiskId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'risks' | 'summary'>('risks');
     const [isHeaderCompact, setIsHeaderCompact] = useState(false);
     const [isIgnored, setIsIgnored] = useState(false);
@@ -336,25 +353,48 @@ export default function ReviewPage() {
         return counts;
     }, [risks]);
 
+    const statusBadge = isIgnored ? (
+        <span className={`${kit.badge} ${kit.toneOk}`}>
+            <CheckCircleIcon size={13} />
+            无需审查
+        </span>
+    ) : risks.length > 0 ? (
+        <span className={`${kit.badge} ${levelCounts.high > 0 ? kit.toneHigh : kit.toneMid}`}>
+            <span className={kit.dot} />
+            发现 <span className={styles.badgeNum}>{risks.length}</span> 处风险
+        </span>
+    ) : null;
+
     return (
         <div className={styles.container}>
             <header className={`${styles.header} ${isHeaderCompact ? styles.headerCompact : ''}`}>
                 <div className={styles.fileInfo}>
-                    <a href="#" onClick={handleBack} className={styles.backLink}>
-                        ← 返回{backUrl ? '上一页' : '工作台'}
+                    <a href="#" onClick={handleBack} className={styles.backLink} title={backUrl ? '返回上一页' : '返回工作台'}>
+                        <ArrowLeftIcon size={16} />
+                        <span>返回{backUrl ? '上一页' : '工作台'}</span>
                     </a>
-                    <span className={styles.fileName}>{fileName}</span>
-                    {isIgnored ? (
-                        <span className={styles.fileTag} style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>
-                            ✅ 无需审查
-                        </span>
-                    ) : (
-                        <span className={styles.fileTag}>{docType}</span>
-                    )}
+                    <span className={styles.headerDivider} aria-hidden="true" />
+                    <BrandSeal char="审" size={26} variant="outline" className={styles.headerSeal} />
+                    <h1 className={styles.fileName} title={fileName}>{fileName}</h1>
+                    <div className={styles.headerBadges}>
+                        {!isIgnored && (
+                            <span className={`${kit.badge} ${kit.toneBrand}`}>
+                                <FileTextIcon size={13} />
+                                {docType}
+                            </span>
+                        )}
+                        {statusBadge}
+                    </div>
                 </div>
                 <div className={styles.headerActions}>
-                    <button className={styles.actionBtn} onClick={handleExport}>导出报告</button>
-                    <button className={`${styles.actionBtn} ${styles.primaryBtn}`} onClick={handleComplete}>完成审查</button>
+                    <button className={`${kit.btn} ${kit.btnSecondary} ${kit.btnSm}`} onClick={handleExport}>
+                        <DownloadIcon size={15} />
+                        <span className={styles.actionLabel}>导出审查意见书（Word）</span>
+                    </button>
+                    <button className={`${kit.btn} ${kit.btnPrimary} ${kit.btnSm}`} onClick={handleComplete}>
+                        <CheckIcon size={15} />
+                        完成审查
+                    </button>
                 </div>
             </header>
 
@@ -364,7 +404,12 @@ export default function ReviewPage() {
                         {docxAvailable === true && (
                             <div ref={docxRef} className={styles.htmlContent} data-html-content="true" />
                         )}
-                        {docxAvailable !== true && docContent.length === 0 && <div style={{ padding: '20px', color: '#999' }}>文档内容为空或正在加载...</div>}
+                        {docxAvailable !== true && docContent.length === 0 && (
+                            <div className={styles.docEmpty}>
+                                <FileTextIcon size={16} />
+                                文档内容为空或正在加载...
+                            </div>
+                        )}
                         {docxAvailable !== true && docContent.map(para => {
                             const linkedRisks = risks.filter(r => r.paragraphIds && r.paragraphIds.includes(para.id));
                             const hasRisk = linkedRisks.length > 0;
@@ -408,31 +453,44 @@ export default function ReviewPage() {
                     </div>
                 </div>
 
-                <div className={styles.reviewPanel}>
+                <aside className={styles.reviewPanel}>
                     <div className={styles.panelTabs}>
-                        <div
-                            className={`${styles.tab} ${activeTab === 'risks' ? styles.active : ''}`}
-                            onClick={() => setActiveTab('risks')}
-                        >
-                            风险审查 ({risks.length})
-                        </div>
-                        <div
-                            className={`${styles.tab} ${activeTab === 'summary' ? styles.active : ''}`}
-                            onClick={() => setActiveTab('summary')}
-                        >
-                            全文摘要
+                        <div className={`${kit.segment} ${styles.panelSegment}`} role="tablist">
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === 'risks'}
+                                className={`${kit.segmentItem} ${styles.tab} ${activeTab === 'risks' ? `${kit.segmentActive} ${styles.active}` : ''}`}
+                                onClick={() => setActiveTab('risks')}
+                            >
+                                <ScaleLawIcon size={14} />
+                                审查意见
+                                <span className={styles.tabCount}>{risks.length}</span>
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={activeTab === 'summary'}
+                                className={`${kit.segmentItem} ${styles.tab} ${activeTab === 'summary' ? `${kit.segmentActive} ${styles.active}` : ''}`}
+                                onClick={() => setActiveTab('summary')}
+                            >
+                                <FileTextIcon size={14} />
+                                全文摘要
+                            </button>
                         </div>
                     </div>
 
                     <div className={styles.panelContent}>
                         {activeTab === 'summary' && (
-                            <div style={{ padding: '20px', lineHeight: '1.6', color: '#374151' }}>
-                                <div style={{ fontWeight: 600, marginBottom: '12px', fontSize: '16px' }}>📄 文件核心内容摘要</div>
-                                <div style={{ fontSize: '14px', background: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                                    {summary}
+                            <div className={styles.summaryView}>
+                                <div className={styles.summaryHead}>
+                                    <span className={kit.cardTitleIcon}><FileTextIcon size={16} /></span>
+                                    <h2 className={styles.summaryTitle}>文件核心内容摘要</h2>
                                 </div>
-                                <div style={{ marginTop: '20px', fontSize: '13px', color: '#6b7280' }}>
-                                    💡 该摘要由 AI 自动生成，旨在帮助审查员快速了解文件主旨。
+                                <div className={styles.summaryBody}>{summary}</div>
+                                <div className={styles.summaryNote}>
+                                    <SparklesIcon size={14} />
+                                    该摘要由 AI 自动生成，旨在帮助审查员快速了解文件主旨。
                                 </div>
                             </div>
                         )}
@@ -442,62 +500,91 @@ export default function ReviewPage() {
                                 {!activeRiskId && (
                                     <div className={styles.riskList}>
                                         {isIgnored && (
-                                            <div style={{
-                                                background: '#ecfdf5',
-                                                border: '1px solid #a7f3d0',
-                                                borderRadius: '12px',
-                                                padding: '24px',
-                                                marginBottom: '20px',
-                                                textAlign: 'center',
-                                            }}>
-                                                <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-                                                <h3 style={{ margin: '0 0 8px 0', color: '#065f46', fontSize: '18px' }}>此文件无需进行审查</h3>
-                                                <p style={{ margin: 0, color: '#047857', lineHeight: 1.5 }}>{ignoreReason}</p>
+                                            <div className={styles.ignoredCard}>
+                                                <span className={styles.ignoredIcon}><CheckCircleIcon size={26} /></span>
+                                                <h3 className={styles.ignoredTitle}>此文件无需进行审查</h3>
+                                                <p className={styles.ignoredReason}>{ignoreReason}</p>
                                             </div>
                                         )}
 
                                         {risks.length > 0 && (
-                                            <div style={{
-                                                display: 'flex',
-                                                gap: '8px',
-                                                padding: '12px 16px',
-                                                background: '#f8fafc',
-                                                borderBottom: '1px solid #e2e8f0',
-                                                fontSize: '12px',
-                                                color: '#475569',
-                                            }}>
-                                                <span>🔴 高 {levelCounts.high}</span>
-                                                <span>🟡 中 {levelCounts.medium}</span>
-                                                <span>🔵 低 {levelCounts.low}</span>
+                                            <div className={styles.statsBar}>
+                                                <div className={styles.statsHead}>
+                                                    <span className={kit.eyebrow}>风险分级统计</span>
+                                                    <span className={styles.statsTotal}>
+                                                        共 <span className={styles.statsTotalNum}>{risks.length}</span> 项
+                                                    </span>
+                                                </div>
+                                                <div className={styles.statsPills}>
+                                                    {LEVEL_ORDER.map(level => (
+                                                        <span
+                                                            key={level}
+                                                            className={`${kit.badge} ${LEVEL_META[level].tone} ${styles.statPill} ${levelCounts[level] === 0 ? styles.statPillZero : ''}`}
+                                                        >
+                                                            <span className={kit.dot} />
+                                                            {LEVEL_META[level].label}
+                                                            <span className={styles.statNum}>{levelCounts[level]}</span>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                <div className={styles.statsTrack} aria-hidden="true">
+                                                    {LEVEL_ORDER.map(level => (
+                                                        levelCounts[level] > 0 ? (
+                                                            <span
+                                                                key={level}
+                                                                className={`${styles.statsSeg} ${LEVEL_META[level].cls}`}
+                                                                style={{ flexGrow: levelCounts[level] }}
+                                                            />
+                                                        ) : null
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
 
                                         {risks.length === 0 && !isIgnored && (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
-                                                未发现明显风险点，或正在分析中...
+                                            <div className={kit.empty}>
+                                                <span className={kit.emptyIcon}><SearchIcon size={22} /></span>
+                                                <div className={kit.emptyTitle}>未发现明显风险点，或正在分析中...</div>
                                             </div>
                                         )}
 
-                                        {risks.map(risk => (
-                                            <div
-                                                key={risk.id}
-                                                className={styles.riskCard}
-                                                onClick={() => handleRiskClick(risk.id)}
-                                            >
-                                                <div className={styles.cardHeader}>
-                                                    <span className={styles.riskLevel}>
-                                                        {LEVEL_BADGE[risk.level]?.label ?? LEVEL_BADGE.medium.label}
-                                                    </span>
-                                                    {typeof risk.confidence === 'number' && (
-                                                        <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>
-                                                            置信度 {risk.confidence}%
+                                        {risks.map((risk, index) => {
+                                            const meta = LEVEL_META[risk.level] ?? LEVEL_META.medium;
+                                            return (
+                                                <div
+                                                    key={risk.id}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    className={`${styles.riskCard} ${meta.cls} ${lastRiskId === risk.id ? styles.riskCardActive : ''}`}
+                                                    onClick={() => handleRiskClick(risk.id)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            handleRiskClick(risk.id);
+                                                        }
+                                                    }}
+                                                >
+                                                    <div className={styles.cardHeader}>
+                                                        <span className={`${kit.badge} ${meta.tone}`}>
+                                                            <span className={kit.dot} />
+                                                            {meta.label}
                                                         </span>
-                                                    )}
+                                                        {typeof risk.confidence === 'number' && (
+                                                            <span className={styles.confidence}>
+                                                                置信度 <span className={styles.confidenceNum}>{risk.confidence}%</span>
+                                                            </span>
+                                                        )}
+                                                        <span className={styles.cardIndex}>{String(index + 1).padStart(2, '0')}</span>
+                                                    </div>
+                                                    <div className={styles.riskTitle}>{risk.title}</div>
+                                                    <blockquote className={styles.riskSnippet}>{risk.snippet}</blockquote>
+                                                    <div className={styles.cardFoot}>
+                                                        <span>查看审查意见</span>
+                                                        <ChevronRightIcon size={14} />
+                                                    </div>
                                                 </div>
-                                                <div className={styles.riskTitle}>{risk.title}</div>
-                                                <div className={styles.riskSnippet}>“{risk.snippet}”</div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
 
@@ -505,13 +592,13 @@ export default function ReviewPage() {
                                     <RiskDetail
                                         risk={activeRisk}
                                         reviewId={realReviewId}
-                                        onBack={() => { clearHighlights(); setActiveRiskId(null); }}
+                                        onBack={() => { clearHighlights(); setLastRiskId(activeRiskId); setActiveRiskId(null); }}
                                     />
                                 )}
                             </>
                         )}
                     </div>
-                </div>
+                </aside>
             </div>
         </div>
     );

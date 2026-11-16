@@ -9,22 +9,35 @@ import {
     isValidPhone,
     type OrgType,
 } from '@/lib/org-constants';
+import OrgPicker from '@/components/ui/OrgPicker';
+import BrandSeal from '@/components/ui/BrandSeal';
+import {
+    AlertCircleIcon,
+    ArrowRightIcon,
+    BuildingIcon,
+    CheckCircleIcon,
+    EyeIcon,
+    EyeOffIcon,
+    LockIcon,
+    PhoneIcon,
+    UserIcon,
+} from '@/components/ui/Icons';
 
-const CAPABILITY_CARDS = [
+const CAPABILITIES = [
     {
-        icon: '📋',
-        title: '招标文书编制阶段合规自查',
-        desc: '面向全区各镇街审查员、工程经办人员及工程建设招标代理机构，在招标文件发布前智能排查排除、限制竞争隐患。',
+        no: '01',
+        title: '编制阶段合规自查',
+        desc: '服务镇街工程经办、审查员与工程招标代理机构，在招标文件发布前排查排除、限制竞争隐患。',
     },
     {
-        icon: '⚖️',
-        title: '浙江招投标 21 条细则精准对标',
-        desc: '内置《公平竞争审查条例》与《浙江省招标投标领域公平竞争审查细则》，多智能体协同识别地域业绩加分、变相资质门槛与保证金限制。',
+        no: '02',
+        title: '浙江 21 条细则对标',
+        desc: '对照《公平竞争审查条例》与浙江省招投标领域细则，深度识别地域业绩加分、变相资质门槛与保证金壁垒。',
     },
     {
-        icon: '📄',
-        title: '原文高亮定位与意见书一键导出',
-        desc: '自动定位文书风险条款原文、匹配典型通报案例，一键导出标准 Word 格式《招投标领域公平竞争审查意见书》。',
+        no: '03',
+        title: '原文定位与意见书导出',
+        desc: '高亮定位违规原句、匹配典型通报案例，一键导出标准格式审查意见书。',
     },
 ];
 
@@ -33,6 +46,44 @@ const ORG_TYPE_OPTIONS: { value: OrgType; label: string }[] = [
     { value: 'agency', label: '招标代理公司' },
     { value: 'gov', label: '区级部门' },
 ];
+
+interface PasswordInputProps {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    minLength?: number;
+    autoComplete?: string;
+    id: string;
+}
+
+function PasswordInput({ value, onChange, placeholder, minLength, autoComplete, id }: PasswordInputProps) {
+    const [visible, setVisible] = useState(false);
+    return (
+        <div className={styles.inputWrap}>
+            <span className={styles.inputIcon}><LockIcon size={16} /></span>
+            <input
+                id={id}
+                type={visible ? 'text' : 'password'}
+                placeholder={placeholder}
+                className={`${styles.input} ${styles.inputHasAction}`}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                minLength={minLength}
+                autoComplete={autoComplete}
+                required
+            />
+            <button
+                type="button"
+                className={styles.inputAction}
+                onClick={() => setVisible((v) => !v)}
+                aria-label={visible ? '隐藏密码' : '显示密码'}
+                title={visible ? '隐藏密码' : '显示密码'}
+            >
+                {visible ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+            </button>
+        </div>
+    );
+}
 
 export default function LoginPage() {
     const router = useRouter();
@@ -154,125 +205,166 @@ export default function LoginPage() {
         }
     };
 
+    const orgFieldLabel = regOrgType === 'town'
+        ? '所属镇街'
+        : regOrgType === 'gov'
+            ? '所属区级部门'
+            : '招标代理公司全称';
+
     return (
         <main className={styles.container}>
-            {/* Left Side: System Branding & Core Capabilities */}
-            <div className={styles.leftPanel}>
-                <div className={styles.leftContent}>
-                    <div className={styles.branding}>
-                        <div className={styles.orgBadge}>杭州市临安区市场监督管理局</div>
-                        <h1>招投标领域公平竞争审查系统</h1>
-                        <p>BIDDING &amp; TENDERING FAIR COMPETITION REVIEW SYSTEM</p>
-                    </div>
+            {/* 左栏：精装卷宗封面 */}
+            <section className={styles.cover}>
+                <div className={styles.coverTexture} aria-hidden="true" />
+                <div className={styles.coverGrid} aria-hidden="true" />
 
-                    <div className={styles.capabilityList}>
-                        {CAPABILITY_CARDS.map((card) => (
-                            <div key={card.title} className={styles.capabilityCard}>
-                                <div className={styles.capabilityIcon}>{card.icon}</div>
-                                <div className={styles.capabilityText}>
-                                    <h3>{card.title}</h3>
-                                    <p>{card.desc}</p>
+                <header className={styles.coverHead}>
+                    <BrandSeal char="审" size={40} variant="onDark" />
+                    <div className={styles.coverOrg}>
+                        <span className={styles.coverOrgName}>杭州市临安区市场监督管理局</span>
+                        <span className={styles.coverOrgSub}>LIN&apos;AN DISTRICT ADMINISTRATION FOR MARKET REGULATION</span>
+                    </div>
+                </header>
+
+                <div className={styles.coverMain}>
+                    <div className={styles.coverEyebrow}>
+                        <span className={styles.coverEyebrowLine} />
+                        公平竞争审查 · 招投标专项
+                    </div>
+                    <h1 className={styles.coverTitle}>
+                        招投标领域
+                        <br />
+                        <em>公平竞争</em>审查系统
+                    </h1>
+                    <p className={styles.coverLead}>
+                        以《公平竞争审查条例》与浙江省招投标领域细则为准绳，在招标文书发布之前，发现并纠正排除、限制竞争的条款。
+                    </p>
+
+                    <ol className={styles.capList}>
+                        {CAPABILITIES.map((cap) => (
+                            <li key={cap.no} className={styles.capItem}>
+                                <span className={styles.capNo}>{cap.no}</span>
+                                <div className={styles.capText}>
+                                    <h3>{cap.title}</h3>
+                                    <p>{cap.desc}</p>
                                 </div>
-                            </div>
+                            </li>
                         ))}
-                    </div>
+                    </ol>
                 </div>
 
-                <div className={styles.footer}>
-                    <div className={styles.beianRow}>
-                        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
-                            浙ICP备2026097272号-1
-                        </a>
-                        <a
-                            href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33018502002722"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={styles.beianLink}
-                        >
-                            <img src="/beian.png" alt="备案图标" style={{ width: '16px', height: '16px' }} />
-                            浙公网安备33018502002722号
-                        </a>
-                    </div>
-                </div>
-            </div>
+                <footer className={styles.coverFoot}>
+                    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+                        浙ICP备2026097272号-1
+                    </a>
+                    <span className={styles.footSep} aria-hidden="true" />
+                    <a
+                        href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33018502002722"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.beianLink}
+                    >
+                        <img src="/beian.png" alt="备案图标" width={14} height={14} />
+                        浙公网安备33018502002722号
+                    </a>
+                </footer>
+            </section>
 
-            {/* Right Side: Login / Register Switch */}
-            <div className={styles.rightPanel}>
-                <div className={styles.rightPanelInner}>
-                    <div className={styles.loginBox}>
+            {/* 右栏：精装公文卡片 */}
+            <section className={styles.formSide}>
+                <div className={styles.formScroll}>
+                    <div className={`${styles.card} ${mode === 'register' ? styles.cardWide : ''}`}>
                         {mode === 'login' ? (
                             <>
-                                <div className={styles.logoPlaceholder}>
-                                    <div className={styles.logoIcon}>⚖️</div>
-                                    <h2>审查员登录</h2>
-                                    <p className={styles.subTitle}>请使用已审批通过的账号登录系统</p>
+                                <div className={styles.cardHead}>
+                                    <span className={styles.cardKicker}>账号登录</span>
+                                    <h2 className={styles.cardTitle}>审查员登录</h2>
+                                    <p className={styles.cardSub}>请使用经管理员审批通过的账号登录系统</p>
                                 </div>
 
                                 <form className={styles.form} onSubmit={handleLogin}>
-                                    {notice && <div className={styles.noticeBox}>{notice}</div>}
-                                    {error && <div className={styles.errorBox}>{error}</div>}
+                                    {notice && (
+                                        <div className={`${styles.alert} ${styles.alertOk}`} role="status">
+                                            <CheckCircleIcon size={16} />
+                                            <span>{notice}</span>
+                                        </div>
+                                    )}
+                                    {error && (
+                                        <div className={`${styles.alert} ${styles.alertError}`} role="alert">
+                                            <AlertCircleIcon size={16} />
+                                            <span>{error}</span>
+                                        </div>
+                                    )}
 
-                                    <div className={styles.inputGroup}>
-                                        <label>用户名</label>
-                                        <input
-                                            type="text"
-                                            placeholder="请输入用户名"
-                                            className={styles.input}
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
-                                            required
-                                        />
+                                    <div className={styles.field}>
+                                        <label htmlFor="login-username" className={styles.label}>用户名</label>
+                                        <div className={styles.inputWrap}>
+                                            <span className={styles.inputIcon}><UserIcon size={16} /></span>
+                                            <input
+                                                id="login-username"
+                                                type="text"
+                                                placeholder="请输入用户名"
+                                                className={styles.input}
+                                                value={username}
+                                                onChange={(e) => setUsername(e.target.value)}
+                                                autoComplete="username"
+                                                required
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className={styles.inputGroup}>
-                                        <label>密码</label>
-                                        <input
-                                            type="password"
-                                            placeholder="请输入密码"
-                                            className={styles.input}
+                                    <div className={styles.field}>
+                                        <label htmlFor="login-password" className={styles.label}>密码</label>
+                                        <PasswordInput
+                                            id="login-password"
                                             value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            required
+                                            onChange={setPassword}
+                                            placeholder="请输入密码"
+                                            autoComplete="current-password"
                                         />
                                     </div>
 
-                                    <button
-                                        type="submit"
-                                        className={styles.loginBtn}
-                                        disabled={isLoading}
-                                    >
-                                        {isLoading ? '登录中...' : '登录系统'}
+                                    <button type="submit" className={styles.submitBtn} disabled={isLoading}>
+                                        {isLoading ? (
+                                            <><span className={styles.spinner} />登录中…</>
+                                        ) : (
+                                            <>登录系统<ArrowRightIcon size={16} /></>
+                                        )}
                                     </button>
                                 </form>
 
                                 <div className={styles.switchBar}>
                                     还没有账号？
-                                    <button
-                                        type="button"
-                                        className={styles.switchBtn}
-                                        onClick={() => switchMode('register')}
-                                    >
-                                        立即注册
+                                    <button type="button" className={styles.switchBtn} onClick={() => switchMode('register')}>
+                                        申请开通账号
                                     </button>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div className={styles.logoPlaceholderCompact}>
-                                    <h2>申请开通账号</h2>
-                                    <p className={styles.subTitle}>提交后经管理员审核通过即可登录使用</p>
+                                <div className={styles.cardHead}>
+                                    <span className={styles.cardKicker}>实名注册</span>
+                                    <h2 className={styles.cardTitle}>申请开通账号</h2>
+                                    <p className={styles.cardSub}>提交后经管理员审核通过即可登录使用</p>
                                 </div>
 
-                                <form className={styles.regForm} onSubmit={handleRegister}>
-                                    {error && <div className={styles.errorBox}>{error}</div>}
+                                <form className={styles.form} onSubmit={handleRegister}>
+                                    {error && (
+                                        <div className={`${styles.alert} ${styles.alertError}`} role="alert">
+                                            <AlertCircleIcon size={16} />
+                                            <span>{error}</span>
+                                        </div>
+                                    )}
 
-                                    <div className={styles.inputGroup}>
-                                        <label>主体类型</label>
-                                        <div className={styles.segmentGroup}>
+                                    <div className={styles.field}>
+                                        <span className={styles.label}>主体类型</span>
+                                        <div className={styles.segment} role="tablist" aria-label="主体类型">
                                             {ORG_TYPE_OPTIONS.map((opt) => (
                                                 <button
                                                     key={opt.value}
                                                     type="button"
+                                                    role="tab"
+                                                    aria-selected={regOrgType === opt.value}
                                                     className={`${styles.segmentBtn} ${regOrgType === opt.value ? styles.segmentActive : ''}`}
                                                     onClick={() => handleOrgTypeChange(opt.value)}
                                                 >
@@ -282,145 +374,159 @@ export default function LoginPage() {
                                         </div>
                                     </div>
 
-                                    <div className={styles.inputGroup}>
-                                        <label>
-                                            {regOrgType === 'town'
-                                                ? '所属镇街'
-                                                : regOrgType === 'gov'
-                                                    ? '所属区级部门'
-                                                    : '招标代理公司全称'}
-                                        </label>
+                                    <div className={styles.field}>
+                                        <label className={styles.label} htmlFor="reg-org">{orgFieldLabel}</label>
                                         {regOrgType === 'town' ? (
-                                            <select
-                                                className={styles.input}
+                                            <OrgPicker
+                                                key="town"
+                                                id="reg-org"
                                                 value={regDepartment}
-                                                onChange={(e) => setRegDepartment(e.target.value)}
-                                                required
-                                            >
-                                                <option value="">请选择所属镇街</option>
-                                                {TOWN_LIST.map((town) => (
-                                                    <option key={town} value={town}>{town}</option>
-                                                ))}
-                                            </select>
-                                        ) : regOrgType === 'gov' ? (
-                                            <select
-                                                className={styles.input}
-                                                value={regDepartment}
-                                                onChange={(e) => setRegDepartment(e.target.value)}
-                                                required
-                                            >
-                                                <option value="">请选择区级部门</option>
-                                                {GOV_DEPT_LIST.map((dept) => (
-                                                    <option key={dept} value={dept}>{dept}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <input
-                                                type="text"
-                                                placeholder="请输入工程建设代理公司全称（如：杭州XX工程管理有限公司）"
-                                                className={styles.input}
-                                                value={regDepartment}
-                                                onChange={(e) => setRegDepartment(e.target.value)}
-                                                minLength={4}
-                                                maxLength={64}
+                                                onChange={setRegDepartment}
+                                                options={TOWN_LIST}
+                                                title="选择所属镇街"
+                                                unitLabel="镇街"
+                                                placeholder="请选择所属镇街"
+                                                searchPlaceholder="快速检索镇街名称..."
                                                 required
                                             />
+                                        ) : regOrgType === 'gov' ? (
+                                            <OrgPicker
+                                                key="gov"
+                                                id="reg-org"
+                                                value={regDepartment}
+                                                onChange={setRegDepartment}
+                                                options={GOV_DEPT_LIST}
+                                                title="选择所属区级部门"
+                                                unitLabel="部门"
+                                                placeholder="请选择所属区级部门"
+                                                searchPlaceholder="快速检索部门名称..."
+                                                required
+                                            />
+                                        ) : (
+                                            <div className={styles.inputWrap}>
+                                                <span className={styles.inputIcon}><BuildingIcon size={16} /></span>
+                                                <input
+                                                    id="reg-org"
+                                                    type="text"
+                                                    placeholder="如：杭州××工程管理有限公司"
+                                                    className={styles.input}
+                                                    value={regDepartment}
+                                                    onChange={(e) => setRegDepartment(e.target.value)}
+                                                    minLength={4}
+                                                    maxLength={64}
+                                                    required
+                                                />
+                                            </div>
                                         )}
                                     </div>
 
-                                    <div className={styles.twoColRow}>
-                                        <div className={styles.inputGroup}>
-                                            <label>真实姓名</label>
+                                    <div className={styles.twoCol}>
+                                        <div className={styles.field}>
+                                            <label className={styles.label} htmlFor="reg-name">真实姓名</label>
+                                            <div className={styles.inputWrap}>
+                                                <span className={styles.inputIcon}><UserIcon size={16} /></span>
+                                                <input
+                                                    id="reg-name"
+                                                    type="text"
+                                                    placeholder="2–32 位姓名"
+                                                    className={styles.input}
+                                                    value={regName}
+                                                    onChange={(e) => setRegName(e.target.value)}
+                                                    minLength={2}
+                                                    maxLength={32}
+                                                    autoComplete="name"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className={styles.field}>
+                                            <label className={styles.label} htmlFor="reg-phone">手机号码</label>
+                                            <div className={styles.inputWrap}>
+                                                <span className={styles.inputIcon}><PhoneIcon size={15} /></span>
+                                                <input
+                                                    id="reg-phone"
+                                                    type="tel"
+                                                    placeholder="11 位手机号"
+                                                    className={`${styles.input} ${styles.inputMono}`}
+                                                    value={regPhone}
+                                                    onChange={(e) => setRegPhone(e.target.value)}
+                                                    maxLength={11}
+                                                    autoComplete="tel"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.field}>
+                                        <label className={styles.label} htmlFor="reg-username">登录用户名</label>
+                                        <div className={styles.inputWrap}>
+                                            <span className={styles.inputIcon}><UserIcon size={16} /></span>
                                             <input
+                                                id="reg-username"
                                                 type="text"
-                                                placeholder="2-32位姓名"
-                                                className={styles.input}
-                                                value={regName}
-                                                onChange={(e) => setRegName(e.target.value)}
-                                                minLength={2}
+                                                placeholder="3–32 位字母、数字、下划线或连字符"
+                                                className={`${styles.input} ${styles.inputMono}`}
+                                                value={regUsername}
+                                                onChange={(e) => setRegUsername(e.target.value)}
+                                                minLength={3}
                                                 maxLength={32}
-                                                required
-                                            />
-                                        </div>
-                                        <div className={styles.inputGroup}>
-                                            <label>手机号码</label>
-                                            <input
-                                                type="tel"
-                                                placeholder="11位手机号"
-                                                className={styles.input}
-                                                value={regPhone}
-                                                onChange={(e) => setRegPhone(e.target.value)}
-                                                maxLength={11}
+                                                autoComplete="username"
                                                 required
                                             />
                                         </div>
                                     </div>
 
-                                    <div className={styles.inputGroup}>
-                                        <label>登录用户名</label>
-                                        <input
-                                            type="text"
-                                            placeholder="3-32位字母、数字、下划线或连字符"
-                                            className={styles.input}
-                                            value={regUsername}
-                                            onChange={(e) => setRegUsername(e.target.value)}
-                                            minLength={3}
-                                            maxLength={32}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className={styles.twoColRow}>
-                                        <div className={styles.inputGroup}>
-                                            <label>设置密码</label>
-                                            <input
-                                                type="password"
-                                                placeholder="至少8位含两种字符"
-                                                className={styles.input}
+                                    <div className={styles.twoCol}>
+                                        <div className={styles.field}>
+                                            <label className={styles.label} htmlFor="reg-password">设置密码</label>
+                                            <PasswordInput
+                                                id="reg-password"
                                                 value={regPassword}
-                                                onChange={(e) => setRegPassword(e.target.value)}
+                                                onChange={setRegPassword}
+                                                placeholder="至少 8 位含两种字符"
                                                 minLength={8}
-                                                required
+                                                autoComplete="new-password"
                                             />
                                         </div>
-                                        <div className={styles.inputGroup}>
-                                            <label>确认密码</label>
-                                            <input
-                                                type="password"
-                                                placeholder="再次输入密码"
-                                                className={styles.input}
+                                        <div className={styles.field}>
+                                            <label className={styles.label} htmlFor="reg-confirm">确认密码</label>
+                                            <PasswordInput
+                                                id="reg-confirm"
                                                 value={regConfirmPassword}
-                                                onChange={(e) => setRegConfirmPassword(e.target.value)}
+                                                onChange={setRegConfirmPassword}
+                                                placeholder="再次输入密码"
                                                 minLength={8}
-                                                required
+                                                autoComplete="new-password"
                                             />
                                         </div>
                                     </div>
 
-                                    <button
-                                        type="submit"
-                                        className={styles.loginBtn}
-                                        disabled={regLoading}
-                                    >
-                                        {regLoading ? '提交中...' : '提交注册申请'}
+                                    <button type="submit" className={styles.submitBtn} disabled={regLoading}>
+                                        {regLoading ? (
+                                            <><span className={styles.spinner} />提交中…</>
+                                        ) : (
+                                            <>提交注册申请<ArrowRightIcon size={16} /></>
+                                        )}
                                     </button>
                                 </form>
 
                                 <div className={styles.switchBar}>
                                     已有账号？
-                                    <button
-                                        type="button"
-                                        className={styles.switchBtn}
-                                        onClick={() => switchMode('login')}
-                                    >
+                                    <button type="button" className={styles.switchBtn} onClick={() => switchMode('login')}>
                                         返回登录
                                     </button>
                                 </div>
                             </>
                         )}
                     </div>
+
+                    <p className={styles.formNote}>
+                        <LockIcon size={13} />
+                        仅限经审批的政务人员及招标代理机构使用 · 严禁上传涉密文档
+                    </p>
                 </div>
-            </div>
+            </section>
         </main>
     );
 }

@@ -3,6 +3,38 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './admin.module.css';
+import kit from '@/components/ui/kit.module.css';
+import BrandSeal from '@/components/ui/BrandSeal';
+import CustomSelect, { type SelectOption } from '@/components/ui/CustomSelect';
+import OrgPicker from '@/components/ui/OrgPicker';
+import {
+    AlertTriangleIcon,
+    ArrowLeftIcon,
+    BanIcon,
+    BuildingIcon,
+    CheckCircleIcon,
+    CheckIcon,
+    ClockIcon,
+    CloseIcon,
+    CopyIcon,
+    DownloadIcon,
+    EditIcon,
+    EyeIcon,
+    FileTextIcon,
+    FilterIcon,
+    KeyIcon,
+    LedgerIcon,
+    LockIcon,
+    MessageIcon,
+    PhoneIcon,
+    PlusIcon,
+    SearchIcon,
+    ShieldAdminIcon,
+    TrashIcon,
+    UserCheckIcon,
+    UserPlusIcon,
+    UsersIcon,
+} from '@/components/ui/Icons';
 import FeedbackReviewPanel from '../felixgao/FeedbackReview';
 import {
     GOV_DEPT_LIST,
@@ -62,19 +94,49 @@ interface ReviewStats {
 const VALID_TABS: readonly AdminTab[] = ['approval', 'users', 'reviews', 'feedbacks'];
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
-    active: { label: '正常', className: styles.statusActive },
-    pending: { label: '待审批', className: styles.statusPending },
-    disabled: { label: '已禁用', className: styles.statusDisabled },
-    rejected: { label: '未通过', className: styles.statusRejected },
+    active: { label: '正常', className: kit.toneOk },
+    pending: { label: '待审批', className: kit.toneMid },
+    disabled: { label: '已禁用', className: kit.toneMuted },
+    rejected: { label: '未通过', className: kit.toneHigh },
 };
 
-const REVIEW_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-    completed: { label: '● 已完成', color: '#10b981' },
-    ignored: { label: '● 无需审查', color: '#9ca3af' },
-    failed: { label: '● 失败', color: '#ef4444' },
-    processing: { label: '● 审查中', color: '#2563eb' },
-    pending: { label: '● 待处理', color: '#f59e0b' },
+const REVIEW_STATUS_LABELS: Record<string, { label: string; className: string; pulse?: boolean }> = {
+    completed: { label: '已完成', className: kit.toneOk },
+    ignored: { label: '无需审查', className: kit.toneMuted },
+    failed: { label: '失败', className: kit.toneHigh },
+    processing: { label: '审查中', className: kit.toneLow, pulse: true },
+    pending: { label: '待处理', className: kit.toneMid },
 };
+
+const ORG_FILTER_OPTIONS: readonly SelectOption[] = [
+    { value: 'all', label: '全部主体类型' },
+    { value: 'town', label: '镇街' },
+    { value: 'agency', label: '招标代理公司' },
+    { value: 'gov', label: '区级部门' },
+];
+
+const STATUS_FILTER_OPTIONS: readonly SelectOption[] = [
+    { value: 'all', label: '全部状态' },
+    { value: 'active', label: '正常' },
+    { value: 'pending', label: '待审批' },
+    { value: 'disabled', label: '已禁用' },
+    { value: 'rejected', label: '未通过' },
+];
+
+const ORG_TYPE_OPTIONS: readonly SelectOption<OrgType>[] = [
+    { value: 'town', label: '镇街' },
+    { value: 'agency', label: '招标代理公司' },
+    { value: 'gov', label: '区级部门' },
+];
+
+const ROLE_OPTIONS: readonly SelectOption<'user' | 'admin'>[] = [
+    { value: 'user', label: '普通用户', hint: '提交审查' },
+    { value: 'admin', label: '管理员', hint: '后台权限' },
+];
+
+function getInitial(name: string): string {
+    return name.trim().charAt(0) || '?';
+}
 
 function getOrgTypeLabel(orgType?: string | null): string {
     if (orgType && isValidOrgType(orgType)) {
@@ -84,9 +146,9 @@ function getOrgTypeLabel(orgType?: string | null): string {
 }
 
 function getOrgBadgeClass(orgType?: string | null): string {
-    if (orgType === 'town') return styles.orgTown;
-    if (orgType === 'agency') return styles.orgAgency;
-    return styles.orgGov;
+    if (orgType === 'town') return kit.toneBrand;
+    if (orgType === 'agency') return kit.toneSeal;
+    return kit.toneLow;
 }
 
 function getCategoryLabel(summary: string | null): string {
@@ -123,32 +185,37 @@ function renderDepartmentInput(
     required: boolean
 ) {
     if (orgType === 'town') {
-        const inList = (TOWN_LIST as readonly string[]).includes(value);
         return (
-            <select value={value} onChange={(e) => onChange(e.target.value)} required={required}>
-                <option value="">请选择所属镇街</option>
-                {value && !inList && <option value={value}>{value}（历史名称）</option>}
-                {TOWN_LIST.map((town) => (
-                    <option key={town} value={town}>{town}</option>
-                ))}
-            </select>
+            <OrgPicker
+                value={value}
+                onChange={onChange}
+                options={TOWN_LIST}
+                title="选择所属镇街"
+                unitLabel="镇街"
+                placeholder="请选择所属镇街"
+                required={required}
+                aria-label="所属镇街"
+            />
         );
     }
     if (orgType === 'gov') {
-        const inList = (GOV_DEPT_LIST as readonly string[]).includes(value);
         return (
-            <select value={value} onChange={(e) => onChange(e.target.value)} required={required}>
-                <option value="">请选择区级部门</option>
-                {value && !inList && <option value={value}>{value}</option>}
-                {GOV_DEPT_LIST.map((dept) => (
-                    <option key={dept} value={dept}>{dept}</option>
-                ))}
-            </select>
+            <OrgPicker
+                value={value}
+                onChange={onChange}
+                options={GOV_DEPT_LIST}
+                title="选择所属区级部门"
+                unitLabel="部门"
+                placeholder="请选择区级部门"
+                required={required}
+                aria-label="所属区级部门"
+            />
         );
     }
     return (
         <input
             type="text"
+            className={kit.input}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="请输入招标代理公司全称（4-64个字符）"
@@ -570,561 +637,688 @@ function AdminContent({ currentAdmin }: { currentAdmin: CurrentAdmin }) {
         }
     };
 
+    const navItems: { key: AdminTab; label: string; icon: React.ReactNode; badge?: number }[] = [
+        { key: 'approval', label: '用户审批', icon: <UserCheckIcon size={18} />, badge: pendingUsers.length },
+        { key: 'users', label: '用户管理', icon: <UsersIcon size={18} /> },
+        { key: 'reviews', label: '审查台账', icon: <LedgerIcon size={18} /> },
+        { key: 'feedbacks', label: '反馈审核', icon: <MessageIcon size={18} /> },
+    ];
+
+    const statCards: { label: string; value: number; icon: React.ReactNode; tone: string; unit: string }[] = [
+        { label: '总审查文书数', value: stats.totalFiles, icon: <FileTextIcon size={15} />, tone: styles.statBrand, unit: '份' },
+        { label: '活跃提交账号数', value: stats.activeUsers || 0, icon: <UsersIcon size={15} />, tone: styles.statLow, unit: '个' },
+        { label: '发现风险点总数', value: stats.totalRisks, icon: <AlertTriangleIcon size={15} />, tone: styles.statHigh, unit: '处' },
+        { label: '已完成审查', value: stats.completedFiles, icon: <CheckCircleIcon size={15} />, tone: styles.statOk, unit: '份' },
+        { label: '无需审查', value: stats.ignoredFiles, icon: <BanIcon size={15} />, tone: styles.statMuted, unit: '份' },
+    ];
+
     return (
         <div className={styles.container}>
             <header className={styles.header}>
-                <div className={styles.logoArea}>
-                    <div className={styles.logoText}>🛡️ 招投标领域公平竞争审查系统 · 超级管理端</div>
+                <div className={styles.brand}>
+                    <BrandSeal char="审" size={34} variant="onDark" />
+                    <div className={styles.brandText}>
+                        <span className={styles.brandTitle}>
+                            招投标领域公平竞争审查系统<span className={styles.brandDot}>·</span>管理后台
+                        </span>
+                        <span className={styles.brandSub}>FAIR COMPETITION REVIEW · ADMINISTRATION</span>
+                    </div>
                 </div>
                 <div className={styles.headerRight}>
-                    <span className={styles.adminName}>管理员：{currentAdmin.name}</span>
+                    <div className={styles.adminInfo}>
+                        <span className={styles.adminAvatar}>{getInitial(currentAdmin.name)}</span>
+                        <span className={styles.adminMeta}>
+                            <span className={styles.adminName}>{currentAdmin.name}</span>
+                            <span className={styles.adminRole}>
+                                <ShieldAdminIcon size={12} /> 系统管理员
+                            </span>
+                        </span>
+                    </div>
+                    <span className={styles.headerDivider} aria-hidden="true" />
                     <button
                         type="button"
-                        className={styles.backWorkbenchBtn}
+                        className={styles.backBtn}
                         onClick={() => router.push('/dashboard')}
                     >
-                        ← 返回审查工作台
+                        <ArrowLeftIcon size={15} />
+                        返回审查工作台
                     </button>
                 </div>
             </header>
 
             <div className={styles.main}>
                 <aside className={styles.sidebar}>
-                    <button
-                        type="button"
-                        className={`${styles.menuItem} ${activeTab === 'approval' ? styles.menuItemActive : ''}`}
-                        onClick={() => handleTabChange('approval')}
-                    >
-                        <span className={styles.menuItemLabel}>
-                            <span>✅</span> 用户审批
-                        </span>
-                        {pendingUsers.length > 0 && (
-                            <span className={styles.menuBadge}>{pendingUsers.length}</span>
-                        )}
-                    </button>
-                    <button
-                        type="button"
-                        className={`${styles.menuItem} ${activeTab === 'users' ? styles.menuItemActive : ''}`}
-                        onClick={() => handleTabChange('users')}
-                    >
-                        <span className={styles.menuItemLabel}>
-                            <span>👥</span> 用户管理
-                        </span>
-                    </button>
-                    <button
-                        type="button"
-                        className={`${styles.menuItem} ${activeTab === 'reviews' ? styles.menuItemActive : ''}`}
-                        onClick={() => handleTabChange('reviews')}
-                    >
-                        <span className={styles.menuItemLabel}>
-                            <span>📑</span> 审查台账
-                        </span>
-                    </button>
-                    <button
-                        type="button"
-                        className={`${styles.menuItem} ${activeTab === 'feedbacks' ? styles.menuItemActive : ''}`}
-                        onClick={() => handleTabChange('feedbacks')}
-                    >
-                        <span className={styles.menuItemLabel}>
-                            <span>💬</span> 反馈审核
-                        </span>
-                    </button>
+                    <div className={styles.navGroupLabel}>管理功能</div>
+                    <nav className={styles.nav} aria-label="管理后台导航">
+                        {navItems.map((item) => (
+                            <button
+                                key={item.key}
+                                type="button"
+                                className={`${styles.menuItem} ${activeTab === item.key ? styles.menuItemActive : ''}`}
+                                aria-current={activeTab === item.key ? 'page' : undefined}
+                                onClick={() => handleTabChange(item.key)}
+                            >
+                                <span className={styles.menuIcon}>{item.icon}</span>
+                                <span className={styles.menuLabel}>{item.label}</span>
+                                {item.badge ? <span className={styles.menuBadge}>{item.badge}</span> : null}
+                            </button>
+                        ))}
+                    </nav>
+                    <div className={styles.sidebarFoot}>
+                        <LockIcon size={13} />
+                        <span>账号审批、密码重置与删除操作即时生效，请审慎核对后执行。</span>
+                    </div>
                 </aside>
 
                 <main className={styles.content}>
-                    {activeTab === 'approval' && (
-                        <>
-                            <div className={styles.sectionHeaderRow}>
-                                <div>
-                                    <h1 className={styles.sectionTitle}>待审批注册申请</h1>
-                                    <p className={styles.sectionSub}>核实镇街、区级部门及招标代理公司提交的账号开通申请</p>
+                    <div className={styles.contentInner}>
+                        {activeTab === 'approval' && (
+                            <>
+                                <div className={styles.sectionHeaderRow}>
+                                    <div>
+                                        <div className={styles.sectionEyebrow}>用户审批</div>
+                                        <h1 className={styles.sectionTitle}>待审批注册申请</h1>
+                                        <p className={styles.sectionSub}>核实镇街、区级部门及招标代理公司提交的账号开通申请</p>
+                                    </div>
+                                    {!loadingUsers && pendingUsers.length > 0 && (
+                                        <span className={`${kit.badge} ${kit.toneMid}`}>
+                                            <span className={kit.dot} />
+                                            {pendingUsers.length} 条待处理
+                                        </span>
+                                    )}
                                 </div>
-                            </div>
-                            <div className={styles.card}>
+
                                 {loadingUsers ? (
-                                    <div className={styles.emptyState}>正在加载申请列表...</div>
+                                    <div className={kit.card}>
+                                        <div className={kit.empty}>
+                                            <span className={kit.spinner} />
+                                            <span className={kit.emptyDesc}>正在加载申请列表...</span>
+                                        </div>
+                                    </div>
                                 ) : pendingUsers.length === 0 ? (
-                                    <div className={styles.emptyState}>🎉 暂无待审批的注册申请</div>
+                                    <div className={kit.card}>
+                                        <div className={kit.empty}>
+                                            <span className={kit.emptyIcon}><CheckCircleIcon size={24} /></span>
+                                            <span className={kit.emptyTitle}>暂无待审批的注册申请</span>
+                                            <span className={kit.emptyDesc}>新的账号申请提交后将在此处显示</span>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className={styles.approvalList}>
                                         {pendingUsers.map((u) => (
                                             <div key={u.id} className={styles.approvalItem}>
-                                                <div className={styles.approvalInfo}>
-                                                    <div className={styles.approvalTop}>
-                                                        <span className={styles.approvalName}>{u.name}</span>
-                                                        <span className={styles.approvalUsername}>@{u.username}</span>
-                                                        <span className={`${styles.tag} ${getOrgBadgeClass(u.orgType)}`}>
-                                                            {getOrgTypeLabel(u.orgType)}
+                                                <div className={styles.approvalTop}>
+                                                    <span className={styles.avatar}>{getInitial(u.name)}</span>
+                                                    <div className={styles.approvalIdentity}>
+                                                        <div className={styles.approvalNameRow}>
+                                                            <span className={styles.approvalName}>{u.name}</span>
+                                                            <span className={`${kit.badge} ${kit.badgeSquare} ${getOrgBadgeClass(u.orgType)}`}>
+                                                                {getOrgTypeLabel(u.orgType)}
+                                                            </span>
+                                                        </div>
+                                                        <span className={styles.username}>@{u.username}</span>
+                                                    </div>
+                                                </div>
+                                                <div className={styles.approvalMeta}>
+                                                    <span className={`${styles.metaItem} ${styles.metaWide}`}>
+                                                        <BuildingIcon size={14} />
+                                                        <span className={styles.metaText} title={u.department || ''}>
+                                                            {u.department || '-'}
                                                         </span>
-                                                    </div>
-                                                    <div className={styles.approvalMeta}>
-                                                        <span>🏢 {u.department || '-'}</span>
-                                                        <span>📱 {u.phone || '未填写'}</span>
-                                                        <span>🕒 申请时间：{new Date(u.createdAt).toLocaleString()}</span>
-                                                    </div>
+                                                    </span>
+                                                    <span className={styles.metaItem}>
+                                                        <PhoneIcon size={14} />
+                                                        <span className={`${styles.metaText} ${u.phone ? styles.mono : styles.placeholder}`}>
+                                                            {u.phone || '未填写'}
+                                                        </span>
+                                                    </span>
+                                                    <span className={styles.metaItem}>
+                                                        <ClockIcon size={14} />
+                                                        <span className={`${styles.metaText} ${styles.mono}`}>
+                                                            {new Date(u.createdAt).toLocaleString()}
+                                                        </span>
+                                                    </span>
                                                 </div>
                                                 <div className={styles.approvalActions}>
                                                     <button
                                                         type="button"
-                                                        className={styles.approveBtn}
-                                                        disabled={actionBusyId === u.id}
-                                                        onClick={() => handleStatusAction(u, 'approve')}
-                                                    >
-                                                        ✓ 通过
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={styles.rejectBtn}
+                                                        className={`${kit.btn} ${kit.btnSm} ${kit.btnDanger}`}
                                                         disabled={actionBusyId === u.id}
                                                         onClick={() => handleStatusAction(u, 'reject')}
                                                     >
-                                                        拒绝
+                                                        <CloseIcon size={14} />
+                                                        驳回
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`${kit.btn} ${kit.btnSm} ${kit.btnPrimary}`}
+                                                        disabled={actionBusyId === u.id}
+                                                        onClick={() => handleStatusAction(u, 'approve')}
+                                                    >
+                                                        <CheckIcon size={14} />
+                                                        通过
                                                     </button>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                            </div>
-                        </>
-                    )}
+                            </>
+                        )}
 
-                    {activeTab === 'users' && (
-                        <>
-                            <div className={styles.sectionHeaderRow}>
-                                <div>
-                                    <h1 className={styles.sectionTitle}>系统用户管理</h1>
-                                    <p className={styles.sectionSub}>管理镇街经办、区级部门及招标代理机构账号与权限</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    className={styles.actionBtn}
-                                    onClick={() => setIsCreateModalOpen(true)}
-                                >
-                                    + 新增账号
-                                </button>
-                            </div>
-
-                            <div className={styles.card}>
-                                <div className={styles.toolbar}>
-                                    <input
-                                        type="text"
-                                        className={styles.searchInput}
-                                        placeholder="搜索姓名 / 用户名 / 手机号 / 单位名称..."
-                                        value={userSearch}
-                                        onChange={(e) => setUserSearch(e.target.value)}
-                                    />
-                                    <select
-                                        className={styles.filterSelect}
-                                        value={userOrgFilter}
-                                        onChange={(e) => setUserOrgFilter(e.target.value)}
-                                    >
-                                        <option value="all">全部主体类型</option>
-                                        <option value="town">镇街</option>
-                                        <option value="agency">招标代理公司</option>
-                                        <option value="gov">区级部门</option>
-                                    </select>
-                                    <select
-                                        className={styles.filterSelect}
-                                        value={userStatusFilter}
-                                        onChange={(e) => setUserStatusFilter(e.target.value)}
-                                    >
-                                        <option value="all">全部状态</option>
-                                        <option value="active">正常</option>
-                                        <option value="pending">待审批</option>
-                                        <option value="disabled">已禁用</option>
-                                        <option value="rejected">未通过</option>
-                                    </select>
-                                    <span className={styles.countText}>
-                                        当前 {filteredUsers.length} / 共 {users.length} 个账号
-                                    </span>
-                                </div>
-
-                                <div className={styles.tableWrapper}>
-                                    <table className={styles.table}>
-                                        <thead>
-                                            <tr>
-                                                <th>姓名 / 账号</th>
-                                                <th>主体类型</th>
-                                                <th>所属单位 / 公司</th>
-                                                <th>手机号</th>
-                                                <th>审查次数</th>
-                                                <th>状态</th>
-                                                <th>操作</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredUsers.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={7} className={styles.emptyState}>
-                                                        暂无符合条件的账号
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                filteredUsers.map((u) => {
-                                                    const statusMeta = STATUS_META[u.status] || {
-                                                        label: u.status,
-                                                        className: styles.statusDisabled,
-                                                    };
-                                                    const isAdminUser = u.role === 'admin';
-                                                    return (
-                                                        <tr key={u.id}>
-                                                            <td>
-                                                                <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                                                                    {u.name}
-                                                                    {isAdminUser && (
-                                                                        <span style={{ marginLeft: 6, fontSize: 11, color: '#2563eb' }}>[管理员]</span>
-                                                                    )}
-                                                                </div>
-                                                                <div style={{ fontSize: 12, color: '#64748b' }}>@{u.username}</div>
-                                                            </td>
-                                                            <td>
-                                                                <span className={`${styles.tag} ${getOrgBadgeClass(u.orgType)}`}>
-                                                                    {getOrgTypeLabel(u.orgType)}
-                                                                </span>
-                                                            </td>
-                                                            <td>{u.department || '-'}</td>
-                                                            <td>{u.phone || '-'}</td>
-                                                            <td>{u.reviewCount}</td>
-                                                            <td>
-                                                                <span className={`${styles.tag} ${statusMeta.className}`}>
-                                                                    {statusMeta.label}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                {isAdminUser ? (
-                                                                    <span style={{ fontSize: 12, color: '#9ca3af' }}>系统管理员</span>
-                                                                ) : (
-                                                                    <div className={styles.opGroup}>
-                                                                        <button
-                                                                            type="button"
-                                                                            className={`${styles.opBtn} ${styles.opPrimary}`}
-                                                                            onClick={() => openEditModal(u)}
-                                                                        >
-                                                                            编辑资料
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            className={`${styles.opBtn} ${styles.opWarn}`}
-                                                                            onClick={() => handleResetPassword(u)}
-                                                                        >
-                                                                            重置密码
-                                                                        </button>
-                                                                        {u.status === 'active' && (
-                                                                            <button
-                                                                                type="button"
-                                                                                className={`${styles.opBtn} ${styles.opDanger}`}
-                                                                                disabled={actionBusyId === u.id}
-                                                                                onClick={() => handleStatusAction(u, 'disable')}
-                                                                            >
-                                                                                禁用
-                                                                            </button>
-                                                                        )}
-                                                                        {u.status === 'disabled' && (
-                                                                            <button
-                                                                                type="button"
-                                                                                className={`${styles.opBtn} ${styles.opSuccess}`}
-                                                                                disabled={actionBusyId === u.id}
-                                                                                onClick={() => handleStatusAction(u, 'enable')}
-                                                                            >
-                                                                                启用
-                                                                            </button>
-                                                                        )}
-                                                                        {(u.status === 'pending' || u.status === 'rejected') && (
-                                                                            <button
-                                                                                type="button"
-                                                                                className={`${styles.opBtn} ${styles.opSuccess}`}
-                                                                                disabled={actionBusyId === u.id}
-                                                                                onClick={() => handleStatusAction(u, 'approve')}
-                                                                            >
-                                                                                通过
-                                                                            </button>
-                                                                        )}
-                                                                        <button
-                                                                            type="button"
-                                                                            className={`${styles.opBtn} ${u.reviewCount > 0 ? styles.opMuted : styles.opDanger}`}
-                                                                            onClick={() => handleDeleteUser(u)}
-                                                                        >
-                                                                            删除
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {activeTab === 'reviews' && (
-                        <>
-                            <div className={styles.sectionHeaderRow}>
-                                <div>
-                                    <h1 className={styles.sectionTitle}>全局审查台账</h1>
-                                    <p className={styles.sectionSub}>查看全区各单位及代理公司提交的招标文书审查明细并导出报表</p>
-                                </div>
-                            </div>
-
-                            <div className={styles.statGrid}>
-                                <div className={styles.statCard}>
-                                    <span className={styles.statLabel}>总审查文书数</span>
-                                    <span className={styles.statValue}>{stats.totalFiles}</span>
-                                </div>
-                                <div className={styles.statCard}>
-                                    <span className={styles.statLabel}>活跃提交账号数</span>
-                                    <span className={styles.statValue} style={{ color: '#2563eb' }}>{stats.activeUsers || 0}</span>
-                                </div>
-                                <div className={styles.statCard}>
-                                    <span className={styles.statLabel}>发现风险点总数</span>
-                                    <span className={styles.statValue} style={{ color: '#ef4444' }}>{stats.totalRisks}</span>
-                                </div>
-                                <div className={styles.statCard}>
-                                    <span className={styles.statLabel}>已完成审查</span>
-                                    <span className={styles.statValue} style={{ color: '#10b981' }}>{stats.completedFiles}</span>
-                                </div>
-                                <div className={styles.statCard}>
-                                    <span className={styles.statLabel}>无需审查</span>
-                                    <span className={styles.statValue} style={{ color: '#6b7280' }}>{stats.ignoredFiles}</span>
-                                </div>
-                            </div>
-
-                            <div className={styles.card}>
-                                <div className={styles.toolbar}>
-                                    <input
-                                        type="text"
-                                        className={styles.searchInput}
-                                        placeholder="搜索文书名称 / 提交人姓名 / 所属单位..."
-                                        value={reviewSearch}
-                                        onChange={(e) => setReviewSearch(e.target.value)}
-                                    />
-                                    <select
-                                        className={styles.filterSelect}
-                                        value={reviewOrgFilter}
-                                        onChange={(e) => setReviewOrgFilter(e.target.value)}
-                                    >
-                                        <option value="all">全部主体类型</option>
-                                        <option value="town">镇街</option>
-                                        <option value="agency">招标代理公司</option>
-                                        <option value="gov">区级部门</option>
-                                    </select>
+                        {activeTab === 'users' && (
+                            <>
+                                <div className={styles.sectionHeaderRow}>
+                                    <div>
+                                        <div className={styles.sectionEyebrow}>用户管理</div>
+                                        <h1 className={styles.sectionTitle}>系统用户管理</h1>
+                                        <p className={styles.sectionSub}>管理镇街经办、区级部门及招标代理机构账号与权限</p>
+                                    </div>
                                     <button
                                         type="button"
-                                        className={styles.secondaryBtn}
-                                        onClick={handleExportCsv}
+                                        className={`${kit.btn} ${kit.btnPrimary}`}
+                                        onClick={() => setIsCreateModalOpen(true)}
                                     >
-                                        📤 导出审查台账 CSV
+                                        <PlusIcon size={16} />
+                                        新增账号
                                     </button>
                                 </div>
 
-                                <div className={styles.tableWrapper}>
-                                    <table className={styles.table}>
-                                        <thead>
-                                            <tr>
-                                                <th>文书名称</th>
-                                                <th>文书类型</th>
-                                                <th>提交人 / 单位</th>
-                                                <th>主体类型</th>
-                                                <th>联系电话</th>
-                                                <th>审查状态</th>
-                                                <th>风险数</th>
-                                                <th>提交时间</th>
-                                                <th>操作</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredReviews.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={9} className={styles.emptyState}>
-                                                        暂无符合条件的审查记录
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                filteredReviews.map((record) => {
-                                                    const statusBadge = REVIEW_STATUS_LABELS[record.status] || {
-                                                        label: `● ${record.status}`,
-                                                        color: '#6b7280',
-                                                    };
-                                                    return (
-                                                        <tr key={record.id}>
-                                                            <td
-                                                                style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                                                title={record.fileName}
-                                                            >
-                                                                {record.fileName}
-                                                            </td>
-                                                            <td>
-                                                                <span className={styles.tag} style={{ background: '#f1f5f9', color: '#475569' }}>
-                                                                    {getCategoryLabel(record.summary)}
-                                                                </span>
-                                                            </td>
-                                                            <td style={{ fontSize: 13 }}>
-                                                                {record.user ? (
-                                                                    <div>
-                                                                        <div style={{ fontWeight: 500 }}>{record.user.name}</div>
-                                                                        {record.user.department && (
-                                                                            <div style={{ fontSize: 12, color: '#6b7280' }}>{record.user.department}</div>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <span style={{ color: '#9ca3af' }}>-</span>
-                                                                )}
-                                                            </td>
-                                                            <td>
-                                                                {record.user ? (
-                                                                    <span className={`${styles.tag} ${getOrgBadgeClass(record.user.orgType)}`}>
-                                                                        {getOrgTypeLabel(record.user.orgType)}
-                                                                    </span>
-                                                                ) : (
-                                                                    '-'
-                                                                )}
-                                                            </td>
-                                                            <td style={{ fontSize: 13 }}>{record.user?.phone || '-'}</td>
-                                                            <td>
-                                                                <span style={{ color: statusBadge.color, fontSize: 13 }}>
-                                                                    {statusBadge.label}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                {record.riskCount > 0 ? (
-                                                                    <span style={{ color: '#ef4444', fontWeight: 700 }}>{record.riskCount}</span>
-                                                                ) : (
-                                                                    <span style={{ color: '#10b981' }}>0</span>
-                                                                )}
-                                                            </td>
-                                                            <td style={{ fontSize: 13, color: '#6b7280' }}>
-                                                                {new Date(record.createdAt).toLocaleString()}
-                                                            </td>
-                                                            <td>
-                                                                <div className={styles.opGroup}>
-                                                                    <button
-                                                                        type="button"
-                                                                        className={`${styles.opBtn} ${styles.opPrimary}`}
-                                                                        onClick={() => router.push(`/review/${record.id}?backUrl=${encodeURIComponent('/admin?tab=reviews')}`)}
-                                                                    >
-                                                                        查看
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className={`${styles.opBtn} ${styles.opDanger}`}
-                                                                        onClick={() => handleDeleteReview(record.id)}
-                                                                    >
-                                                                        删除
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </>
-                    )}
+                                <div className={`${kit.card} ${styles.cardFlush}`}>
+                                    <div className={styles.toolbar}>
+                                        <div className={`${kit.inputWrap} ${styles.searchBox}`}>
+                                            <input
+                                                type="text"
+                                                className={`${kit.input} ${kit.inputSm}`}
+                                                placeholder="搜索姓名 / 用户名 / 手机号 / 单位名称..."
+                                                value={userSearch}
+                                                onChange={(e) => setUserSearch(e.target.value)}
+                                                aria-label="搜索用户"
+                                            />
+                                            <span className={kit.inputIcon}><SearchIcon size={15} /></span>
+                                        </div>
+                                        <div className={styles.filterBox}>
+                                            <CustomSelect
+                                                value={userOrgFilter}
+                                                onChange={setUserOrgFilter}
+                                                options={ORG_FILTER_OPTIONS}
+                                                size="sm"
+                                                icon={<FilterIcon size={14} />}
+                                                aria-label="按主体类型筛选"
+                                            />
+                                        </div>
+                                        <div className={styles.filterBox}>
+                                            <CustomSelect
+                                                value={userStatusFilter}
+                                                onChange={setUserStatusFilter}
+                                                options={STATUS_FILTER_OPTIONS}
+                                                size="sm"
+                                                aria-label="按账号状态筛选"
+                                            />
+                                        </div>
+                                        <span className={styles.toolbarSpacer} />
+                                        <span className={styles.countText}>
+                                            当前 <span className={styles.countNum}>{filteredUsers.length}</span> / 共{' '}
+                                            <span className={styles.countNum}>{users.length}</span> 个账号
+                                        </span>
+                                    </div>
 
-                    {activeTab === 'feedbacks' && <FeedbackReviewPanel />}
+                                    <div className={kit.tableWrap}>
+                                        <table className={kit.table}>
+                                            <thead>
+                                                <tr>
+                                                    <th>姓名 / 账号</th>
+                                                    <th>主体类型</th>
+                                                    <th>所属单位 / 公司</th>
+                                                    <th>手机号</th>
+                                                    <th>审查次数</th>
+                                                    <th>状态</th>
+                                                    <th>操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {filteredUsers.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={7}>
+                                                            <div className={kit.empty}>
+                                                                <span className={kit.emptyIcon}><UsersIcon size={24} /></span>
+                                                                <span className={kit.emptyTitle}>
+                                                                    {loadingUsers ? '正在加载账号列表...' : '暂无符合条件的账号'}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    filteredUsers.map((u) => {
+                                                        const statusMeta = STATUS_META[u.status] || {
+                                                            label: u.status,
+                                                            className: kit.toneMuted,
+                                                        };
+                                                        const isAdminUser = u.role === 'admin';
+                                                        return (
+                                                            <tr key={u.id}>
+                                                                <td>
+                                                                    <div className={styles.userCell}>
+                                                                        <span className={`${styles.avatar} ${styles.avatarSm}`}>{getInitial(u.name)}</span>
+                                                                        <div>
+                                                                            <div className={styles.nameRow}>
+                                                                                <span className={kit.cellMain}>{u.name}</span>
+                                                                                {isAdminUser && (
+                                                                                    <span className={`${kit.badge} ${kit.badgeSquare} ${kit.toneBrand}`}>
+                                                                                        <ShieldAdminIcon size={11} />
+                                                                                        管理员
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className={`${kit.cellSub} ${kit.mono}`}>@{u.username}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <span className={`${kit.badge} ${kit.badgeSquare} ${getOrgBadgeClass(u.orgType)}`}>
+                                                                        {getOrgTypeLabel(u.orgType)}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    <div className={styles.deptCell} title={u.department || ''}>
+                                                                        {u.department || <span className={styles.placeholder}>-</span>}
+                                                                    </div>
+                                                                </td>
+                                                                <td className={kit.cellNum}>{u.phone || '-'}</td>
+                                                                <td className={kit.cellNum}>{u.reviewCount}</td>
+                                                                <td>
+                                                                    <span className={`${kit.badge} ${statusMeta.className}`}>
+                                                                        <span className={kit.dot} />
+                                                                        {statusMeta.label}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    {isAdminUser ? (
+                                                                        <span className={styles.adminNote}>
+                                                                            <LockIcon size={12} />
+                                                                            系统管理员
+                                                                        </span>
+                                                                    ) : (
+                                                                        <div className={styles.opGroup}>
+                                                                            <button
+                                                                                type="button"
+                                                                                className={`${styles.opBtn} ${styles.opBrand}`}
+                                                                                onClick={() => openEditModal(u)}
+                                                                            >
+                                                                                <EditIcon size={13} />
+                                                                                编辑资料
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                className={styles.opBtn}
+                                                                                onClick={() => handleResetPassword(u)}
+                                                                            >
+                                                                                <KeyIcon size={13} />
+                                                                                重置密码
+                                                                            </button>
+                                                                            {u.status === 'active' && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className={`${styles.opBtn} ${styles.opDanger}`}
+                                                                                    disabled={actionBusyId === u.id}
+                                                                                    onClick={() => handleStatusAction(u, 'disable')}
+                                                                                >
+                                                                                    <BanIcon size={13} />
+                                                                                    禁用
+                                                                                </button>
+                                                                            )}
+                                                                            {u.status === 'disabled' && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className={`${styles.opBtn} ${styles.opOk}`}
+                                                                                    disabled={actionBusyId === u.id}
+                                                                                    onClick={() => handleStatusAction(u, 'enable')}
+                                                                                >
+                                                                                    <CheckCircleIcon size={13} />
+                                                                                    启用
+                                                                                </button>
+                                                                            )}
+                                                                            {(u.status === 'pending' || u.status === 'rejected') && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className={`${styles.opBtn} ${styles.opOk}`}
+                                                                                    disabled={actionBusyId === u.id}
+                                                                                    onClick={() => handleStatusAction(u, 'approve')}
+                                                                                >
+                                                                                    <CheckIcon size={13} />
+                                                                                    通过
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                type="button"
+                                                                                className={`${styles.opBtn} ${u.reviewCount > 0 ? styles.opMuted : styles.opDanger}`}
+                                                                                title={u.reviewCount > 0 ? '已有审查记录，建议改用禁用' : undefined}
+                                                                                onClick={() => handleDeleteUser(u)}
+                                                                            >
+                                                                                <TrashIcon size={13} />
+                                                                                删除
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {activeTab === 'reviews' && (
+                            <>
+                                <div className={styles.sectionHeaderRow}>
+                                    <div>
+                                        <div className={styles.sectionEyebrow}>审查台账</div>
+                                        <h1 className={styles.sectionTitle}>全局审查台账</h1>
+                                        <p className={styles.sectionSub}>查看全区各单位及代理公司提交的招标文书审查明细并导出报表</p>
+                                    </div>
+                                </div>
+
+                                <div className={styles.statGrid}>
+                                    {statCards.map((card) => (
+                                        <div key={card.label} className={`${styles.statCard} ${card.tone}`}>
+                                            <div className={styles.statTop}>
+                                                <span className={styles.statLabel}>{card.label}</span>
+                                                <span className={styles.statIcon}>{card.icon}</span>
+                                            </div>
+                                            <span className={styles.statValue}>
+                                                {card.value}
+                                                <span className={styles.statUnit}>{card.unit}</span>
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className={`${kit.card} ${styles.cardFlush}`}>
+                                    <div className={styles.toolbar}>
+                                        <div className={`${kit.inputWrap} ${styles.searchBox}`}>
+                                            <input
+                                                type="text"
+                                                className={`${kit.input} ${kit.inputSm}`}
+                                                placeholder="搜索文书名称 / 提交人姓名 / 所属单位..."
+                                                value={reviewSearch}
+                                                onChange={(e) => setReviewSearch(e.target.value)}
+                                                aria-label="搜索审查记录"
+                                            />
+                                            <span className={kit.inputIcon}><SearchIcon size={15} /></span>
+                                        </div>
+                                        <div className={styles.filterBox}>
+                                            <CustomSelect
+                                                value={reviewOrgFilter}
+                                                onChange={setReviewOrgFilter}
+                                                options={ORG_FILTER_OPTIONS}
+                                                size="sm"
+                                                icon={<FilterIcon size={14} />}
+                                                aria-label="按主体类型筛选"
+                                            />
+                                        </div>
+                                        <span className={styles.toolbarSpacer} />
+                                        <span className={styles.countText}>
+                                            共 <span className={styles.countNum}>{filteredReviews.length}</span> 条记录
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className={`${kit.btn} ${kit.btnSm} ${kit.btnSecondary}`}
+                                            onClick={handleExportCsv}
+                                        >
+                                            <DownloadIcon size={15} />
+                                            导出审查台账 CSV
+                                        </button>
+                                    </div>
+
+                                    <div className={kit.tableWrap}>
+                                        <table className={kit.table}>
+                                            <thead>
+                                                <tr>
+                                                    <th>文书名称</th>
+                                                    <th>文书类型</th>
+                                                    <th>提交人 / 单位</th>
+                                                    <th>主体类型</th>
+                                                    <th>联系电话</th>
+                                                    <th>审查状态</th>
+                                                    <th>风险数</th>
+                                                    <th>提交时间</th>
+                                                    <th>操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {filteredReviews.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={9}>
+                                                            <div className={kit.empty}>
+                                                                <span className={kit.emptyIcon}><LedgerIcon size={24} /></span>
+                                                                <span className={kit.emptyTitle}>暂无符合条件的审查记录</span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    filteredReviews.map((record) => {
+                                                        const statusBadge = REVIEW_STATUS_LABELS[record.status] || {
+                                                            label: record.status,
+                                                            className: kit.toneMuted,
+                                                        };
+                                                        return (
+                                                            <tr key={record.id}>
+                                                                <td>
+                                                                    <div className={styles.fileCell} title={record.fileName}>
+                                                                        <FileTextIcon size={15} />
+                                                                        <span className={styles.fileName}>{record.fileName}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <span className={`${kit.badge} ${kit.badgeSquare} ${kit.toneMuted}`}>
+                                                                        {getCategoryLabel(record.summary)}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    {record.user ? (
+                                                                        <div>
+                                                                            <div className={kit.cellMain}>{record.user.name}</div>
+                                                                            {record.user.department && (
+                                                                                <div className={kit.cellSub}>{record.user.department}</div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className={styles.placeholder}>-</span>
+                                                                    )}
+                                                                </td>
+                                                                <td>
+                                                                    {record.user ? (
+                                                                        <span className={`${kit.badge} ${kit.badgeSquare} ${getOrgBadgeClass(record.user.orgType)}`}>
+                                                                            {getOrgTypeLabel(record.user.orgType)}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className={styles.placeholder}>-</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className={kit.cellNum}>{record.user?.phone || '-'}</td>
+                                                                <td>
+                                                                    <span className={`${kit.badge} ${statusBadge.className}`}>
+                                                                        <span className={`${kit.dot} ${statusBadge.pulse ? kit.dotPulse : ''}`} />
+                                                                        {statusBadge.label}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    {record.riskCount > 0 ? (
+                                                                        <span className={styles.riskNum}>{record.riskCount}</span>
+                                                                    ) : (
+                                                                        <span className={styles.riskZero}>0</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className={kit.cellNum}>
+                                                                    {new Date(record.createdAt).toLocaleString()}
+                                                                </td>
+                                                                <td>
+                                                                    <div className={styles.opGroup}>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={`${styles.opBtn} ${styles.opBrand}`}
+                                                                            onClick={() => router.push(`/review/${record.id}?backUrl=${encodeURIComponent('/admin?tab=reviews')}`)}
+                                                                        >
+                                                                            <EyeIcon size={13} />
+                                                                            查看
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={`${styles.opBtn} ${styles.opDanger}`}
+                                                                            onClick={() => handleDeleteReview(record.id)}
+                                                                        >
+                                                                            <TrashIcon size={13} />
+                                                                            删除
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {activeTab === 'feedbacks' && <FeedbackReviewPanel />}
+                    </div>
                 </main>
             </div>
 
             {/* Create User Modal */}
             {isCreateModalOpen && (
-                <div className={styles.modalOverlay} onClick={() => setIsCreateModalOpen(false)}>
-                    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                        <h2 className={styles.modalTitle}>新增系统账号</h2>
-                        <form onSubmit={handleCreateUser}>
-                            <div className={styles.formGroup}>
-                                <label>角色</label>
-                                <select
-                                    value={newUser.role}
-                                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'user' | 'admin' })}
+                <div className={kit.overlay} onClick={() => setIsCreateModalOpen(false)}>
+                    <div
+                        className={`${kit.modal} ${kit.modalWide}`}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="admin-create-title"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className={kit.modalClose}
+                            onClick={() => setIsCreateModalOpen(false)}
+                            aria-label="关闭"
+                        >
+                            <CloseIcon size={16} />
+                        </button>
+                        <div className={kit.modalHeader}>
+                            <span className={kit.modalIcon}><UserPlusIcon size={20} /></span>
+                            <div className={styles.modalHeaderText}>
+                                <h2 id="admin-create-title" className={kit.modalTitle}>新增系统账号</h2>
+                                <p className={kit.modalDesc}>由管理员直接开通的账号无需审批，创建后即可登录。</p>
+                            </div>
+                        </div>
+                        <form className={styles.modalForm} onSubmit={handleCreateUser}>
+                            <div className={kit.modalBody}>
+                                <div className={styles.formGrid}>
+                                    <div className={kit.field}>
+                                        <span className={kit.label}>角色</span>
+                                        <CustomSelect
+                                            value={newUser.role}
+                                            onChange={(role) => setNewUser({ ...newUser, role })}
+                                            options={ROLE_OPTIONS}
+                                            icon={<ShieldAdminIcon size={15} />}
+                                            aria-label="角色"
+                                        />
+                                    </div>
+                                    <div className={kit.field}>
+                                        <span className={kit.label}>主体类型</span>
+                                        <CustomSelect
+                                            value={newUser.orgType}
+                                            onChange={(orgType) => setNewUser({ ...newUser, orgType, department: '' })}
+                                            options={ORG_TYPE_OPTIONS}
+                                            icon={<BuildingIcon size={15} />}
+                                            aria-label="主体类型"
+                                        />
+                                    </div>
+                                    <div className={`${kit.field} ${styles.span2}`}>
+                                        <span className={`${kit.label} ${newUser.role !== 'admin' ? kit.labelReq : ''}`}>
+                                            {newUser.orgType === 'town'
+                                                ? '所属镇街'
+                                                : newUser.orgType === 'agency'
+                                                    ? '招标代理公司全称'
+                                                    : '所属区级部门'}
+                                            {newUser.role === 'admin' && <span className={styles.labelHint}>（管理员选填）</span>}
+                                        </span>
+                                        {renderDepartmentInput(
+                                            newUser.orgType,
+                                            newUser.department,
+                                            (department) => setNewUser({ ...newUser, department }),
+                                            newUser.role !== 'admin'
+                                        )}
+                                    </div>
+                                    <label className={kit.field}>
+                                        <span className={`${kit.label} ${kit.labelReq}`}>真实姓名</span>
+                                        <input
+                                            type="text"
+                                            className={kit.input}
+                                            required
+                                            minLength={2}
+                                            maxLength={32}
+                                            value={newUser.name}
+                                            onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                                            placeholder="2-32位姓名"
+                                        />
+                                    </label>
+                                    <label className={kit.field}>
+                                        <span className={kit.label}>
+                                            手机号码<span className={styles.labelHint}>（选填）</span>
+                                        </span>
+                                        <input
+                                            type="tel"
+                                            className={`${kit.input} ${kit.mono}`}
+                                            maxLength={11}
+                                            value={newUser.phone}
+                                            onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                                            placeholder="11位手机号"
+                                        />
+                                    </label>
+                                    <label className={kit.field}>
+                                        <span className={`${kit.label} ${kit.labelReq}`}>登录用户名</span>
+                                        <input
+                                            type="text"
+                                            className={`${kit.input} ${kit.mono}`}
+                                            required
+                                            minLength={3}
+                                            maxLength={32}
+                                            value={newUser.username}
+                                            onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                                            placeholder="3-32位字母、数字、下划线或连字符"
+                                        />
+                                    </label>
+                                    <label className={kit.field}>
+                                        <span className={`${kit.label} ${kit.labelReq}`}>初始密码</span>
+                                        <input
+                                            type="password"
+                                            className={kit.input}
+                                            required
+                                            minLength={8}
+                                            value={newUser.password}
+                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                                            placeholder="至少8位，含字母/数字/符号中的两种"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                            <div className={kit.modalFooter}>
+                                <button
+                                    type="button"
+                                    className={`${kit.btn} ${kit.btnSecondary}`}
+                                    onClick={() => setIsCreateModalOpen(false)}
                                 >
-                                    <option value="user">普通用户</option>
-                                    <option value="admin">管理员</option>
-                                </select>
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>主体类型</label>
-                                <select
-                                    value={newUser.orgType}
-                                    onChange={(e) => setNewUser({ ...newUser, orgType: e.target.value as OrgType, department: '' })}
-                                >
-                                    <option value="town">镇街</option>
-                                    <option value="agency">招标代理公司</option>
-                                    <option value="gov">区级部门</option>
-                                </select>
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>
-                                    {newUser.orgType === 'town'
-                                        ? '所属镇街'
-                                        : newUser.orgType === 'agency'
-                                            ? '招标代理公司全称'
-                                            : '所属区级部门'}
-                                    {newUser.role === 'admin' && '（管理员选填）'}
-                                </label>
-                                {renderDepartmentInput(
-                                    newUser.orgType,
-                                    newUser.department,
-                                    (department) => setNewUser({ ...newUser, department }),
-                                    newUser.role !== 'admin'
-                                )}
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>真实姓名</label>
-                                <input
-                                    type="text"
-                                    required
-                                    minLength={2}
-                                    maxLength={32}
-                                    value={newUser.name}
-                                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                                    placeholder="2-32位姓名"
-                                />
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>手机号码（选填）</label>
-                                <input
-                                    type="tel"
-                                    maxLength={11}
-                                    value={newUser.phone}
-                                    onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                                    placeholder="11位手机号"
-                                />
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>登录用户名</label>
-                                <input
-                                    type="text"
-                                    required
-                                    minLength={3}
-                                    maxLength={32}
-                                    value={newUser.username}
-                                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                                    placeholder="3-32位字母、数字、下划线或连字符"
-                                />
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>初始密码</label>
-                                <input
-                                    type="password"
-                                    required
-                                    minLength={8}
-                                    value={newUser.password}
-                                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                                    placeholder="至少8位，含字母/数字/符号中的两种"
-                                />
-                            </div>
-                            <div className={styles.modalActions}>
-                                <button type="button" className={styles.cancelBtn} onClick={() => setIsCreateModalOpen(false)}>
                                     取消
                                 </button>
-                                <button type="submit" className={styles.actionBtn}>
+                                <button type="submit" className={`${kit.btn} ${kit.btnPrimary}`}>
+                                    <CheckIcon size={15} />
                                     创建账号
                                 </button>
                             </div>
@@ -1135,62 +1329,95 @@ function AdminContent({ currentAdmin }: { currentAdmin: CurrentAdmin }) {
 
             {/* Edit User Modal */}
             {editingUser && (
-                <div className={styles.modalOverlay} onClick={() => setEditingUser(null)}>
-                    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                        <h2 className={styles.modalTitle}>编辑账号资料（@{editingUser.username}）</h2>
-                        <form onSubmit={handleSaveEdit}>
-                            <div className={styles.formGroup}>
-                                <label>真实姓名</label>
-                                <input
-                                    type="text"
-                                    required
-                                    minLength={2}
-                                    maxLength={32}
-                                    value={editForm.name}
-                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                />
+                <div className={kit.overlay} onClick={() => setEditingUser(null)}>
+                    <div
+                        className={kit.modal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="admin-edit-title"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className={kit.modalClose}
+                            onClick={() => setEditingUser(null)}
+                            aria-label="关闭"
+                        >
+                            <CloseIcon size={16} />
+                        </button>
+                        <div className={kit.modalHeader}>
+                            <span className={kit.modalIcon}><EditIcon size={19} /></span>
+                            <div className={styles.modalHeaderText}>
+                                <h2 id="admin-edit-title" className={kit.modalTitle}>
+                                    编辑账号资料
+                                    <span className={styles.modalUser}>@{editingUser.username}</span>
+                                </h2>
+                                <p className={kit.modalDesc}>修改姓名、主体类型、所属单位及联系方式。</p>
                             </div>
-                            <div className={styles.formGroup}>
-                                <label>主体类型</label>
-                                <select
-                                    value={editForm.orgType}
-                                    onChange={(e) => setEditForm({ ...editForm, orgType: e.target.value as OrgType, department: '' })}
+                        </div>
+                        <form className={styles.modalForm} onSubmit={handleSaveEdit}>
+                            <div className={kit.modalBody}>
+                                <div className={`${styles.formGrid} ${styles.formGridSingle}`}>
+                                    <label className={kit.field}>
+                                        <span className={`${kit.label} ${kit.labelReq}`}>真实姓名</span>
+                                        <input
+                                            type="text"
+                                            className={kit.input}
+                                            required
+                                            minLength={2}
+                                            maxLength={32}
+                                            value={editForm.name}
+                                            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                        />
+                                    </label>
+                                    <div className={kit.field}>
+                                        <span className={kit.label}>主体类型</span>
+                                        <CustomSelect
+                                            value={editForm.orgType}
+                                            onChange={(orgType) => setEditForm({ ...editForm, orgType, department: '' })}
+                                            options={ORG_TYPE_OPTIONS}
+                                            icon={<BuildingIcon size={15} />}
+                                            aria-label="主体类型"
+                                        />
+                                    </div>
+                                    <div className={kit.field}>
+                                        <span className={`${kit.label} ${kit.labelReq}`}>
+                                            {editForm.orgType === 'town'
+                                                ? '所属镇街'
+                                                : editForm.orgType === 'agency'
+                                                    ? '招标代理公司全称'
+                                                    : '所属区级部门'}
+                                        </span>
+                                        {renderDepartmentInput(
+                                            editForm.orgType,
+                                            editForm.department,
+                                            (department) => setEditForm({ ...editForm, department }),
+                                            true
+                                        )}
+                                    </div>
+                                    <label className={kit.field}>
+                                        <span className={kit.label}>手机号码</span>
+                                        <input
+                                            type="tel"
+                                            className={`${kit.input} ${kit.mono}`}
+                                            maxLength={11}
+                                            value={editForm.phone}
+                                            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                                            placeholder="11位手机号（可留空）"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                            <div className={kit.modalFooter}>
+                                <button
+                                    type="button"
+                                    className={`${kit.btn} ${kit.btnSecondary}`}
+                                    onClick={() => setEditingUser(null)}
                                 >
-                                    <option value="town">镇街</option>
-                                    <option value="agency">招标代理公司</option>
-                                    <option value="gov">区级部门</option>
-                                </select>
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>
-                                    {editForm.orgType === 'town'
-                                        ? '所属镇街'
-                                        : editForm.orgType === 'agency'
-                                            ? '招标代理公司全称'
-                                            : '所属区级部门'}
-                                </label>
-                                {renderDepartmentInput(
-                                    editForm.orgType,
-                                    editForm.department,
-                                    (department) => setEditForm({ ...editForm, department }),
-                                    true
-                                )}
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label>手机号码</label>
-                                <input
-                                    type="tel"
-                                    maxLength={11}
-                                    value={editForm.phone}
-                                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                                    placeholder="11位手机号（可留空）"
-                                />
-                            </div>
-                            <div className={styles.modalActions}>
-                                <button type="button" className={styles.cancelBtn} onClick={() => setEditingUser(null)}>
                                     取消
                                 </button>
-                                <button type="submit" className={styles.actionBtn}>
+                                <button type="submit" className={`${kit.btn} ${kit.btnPrimary}`}>
+                                    <CheckIcon size={15} />
                                     保存修改
                                 </button>
                             </div>
@@ -1201,29 +1428,55 @@ function AdminContent({ currentAdmin }: { currentAdmin: CurrentAdmin }) {
 
             {/* Temp Password Modal */}
             {tempPasswordInfo && (
-                <div className={styles.modalOverlay} onClick={() => setTempPasswordInfo(null)}>
-                    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                        <h2 className={styles.modalTitle}>密码重置成功</h2>
-                        <p style={{ fontSize: 14, color: '#475569', margin: '0 0 8px 0' }}>
-                            已为 <strong>{tempPasswordInfo.name}（@{tempPasswordInfo.username}）</strong> 生成一次性临时密码，该账号原有登录会话已立即吊销。请妥善转告用户并在登录后及时修改密码：
-                        </p>
-                        <div className={styles.tempPasswordBox}>
-                            <div className={styles.tempPasswordCode}>{tempPasswordInfo.password}</div>
+                <div className={kit.overlay} onClick={() => setTempPasswordInfo(null)}>
+                    <div
+                        className={kit.modal}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="admin-temp-pwd-title"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className={kit.modalClose}
+                            onClick={() => setTempPasswordInfo(null)}
+                            aria-label="关闭"
+                        >
+                            <CloseIcon size={16} />
+                        </button>
+                        <div className={kit.modalHeader}>
+                            <span className={`${kit.modalIcon} ${kit.modalIconWarn}`}><KeyIcon size={20} /></span>
+                            <div className={styles.modalHeaderText}>
+                                <h2 id="admin-temp-pwd-title" className={kit.modalTitle}>密码重置成功</h2>
+                                <p className={kit.modalDesc}>
+                                    已为 <strong>{tempPasswordInfo.name}（@{tempPasswordInfo.username}）</strong> 生成一次性临时密码，该账号原有登录会话已立即吊销。
+                                </p>
+                            </div>
                         </div>
-                        <div className={styles.modalActions}>
+                        <div className={kit.modalBody}>
+                            <div className={styles.tempPasswordBox}>
+                                <code className={styles.tempPasswordCode}>{tempPasswordInfo.password}</code>
+                                <button
+                                    type="button"
+                                    className={`${kit.btn} ${kit.btnSm} ${kit.btnSecondary} ${copiedPassword ? styles.copiedBtn : ''}`}
+                                    onClick={handleCopyPassword}
+                                >
+                                    {copiedPassword ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+                                    {copiedPassword ? '已复制' : '复制密码'}
+                                </button>
+                            </div>
+                            <div className={`${kit.alert} ${kit.alertWarn}`}>
+                                <AlertTriangleIcon size={15} />
+                                <span>该密码仅在此显示一次，关闭后无法再次查看。请通过安全渠道妥善转告用户，并提醒其登录后及时修改密码。</span>
+                            </div>
+                        </div>
+                        <div className={kit.modalFooter}>
                             <button
                                 type="button"
-                                className={styles.secondaryBtn}
-                                onClick={handleCopyPassword}
-                            >
-                                {copiedPassword ? '✓ 已复制' : '复制密码'}
-                            </button>
-                            <button
-                                type="button"
-                                className={styles.actionBtn}
+                                className={`${kit.btn} ${kit.btnPrimary}`}
                                 onClick={() => setTempPasswordInfo(null)}
                             >
-                                关闭
+                                我已记录，关闭
                             </button>
                         </div>
                     </div>
@@ -1235,7 +1488,14 @@ function AdminContent({ currentAdmin }: { currentAdmin: CurrentAdmin }) {
 
 export default function AdminClient({ currentAdmin }: { currentAdmin: CurrentAdmin }) {
     return (
-        <Suspense fallback={<div style={{ padding: 24, textAlign: 'center' }}>正在加载超级管理端...</div>}>
+        <Suspense
+            fallback={
+                <div className={styles.loadingFallback}>
+                    <span className={kit.spinner} />
+                    正在加载超级管理端...
+                </div>
+            }
+        >
             <AdminContent currentAdmin={currentAdmin} />
         </Suspense>
     );

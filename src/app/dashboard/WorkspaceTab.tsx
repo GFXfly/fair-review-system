@@ -2,8 +2,20 @@
 
 import React from 'react';
 import styles from './page.module.css';
+import kit from '@/components/ui/kit.module.css';
 import FileUpload from '@/components/FileUpload';
 import type { DashboardUser, ReviewRecordSummary } from './types';
+import { RecordStatusBadge, RiskCountBadge, formatDateTime } from './record-badges';
+import {
+    ArrowRightIcon,
+    CheckIcon,
+    FileTextIcon,
+    HistoryIcon,
+    LedgerIcon,
+    RefreshIcon,
+    SparklesIcon,
+    UploadDocIcon,
+} from '@/components/ui/Icons';
 
 interface WorkspaceTabProps {
     pendingFile: File | null;
@@ -18,6 +30,22 @@ interface WorkspaceTabProps {
     user: DashboardUser | null;
     onViewRecord: (record: ReviewRecordSummary) => void;
     onViewLedger: () => void;
+}
+
+const SCOPE_TAGS = ['招标文件', '资格预审', '采购需求', '发包公告'];
+
+/** 审查流程步骤（仅用于进度可视化，阈值与后端 progress 粗略对应） */
+const REVIEW_STEPS = [
+    { label: '文档解析', from: 0 },
+    { label: '准入判定', from: 15 },
+    { label: '法规检索', from: 30 },
+    { label: '深度审查', from: 50 },
+    { label: '复核出具', from: 80 },
+];
+
+function formatSize(bytes: number) {
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 export default function WorkspaceTab({
@@ -35,131 +63,197 @@ export default function WorkspaceTab({
     onViewLedger
 }: WorkspaceTabProps) {
     const isAdmin = user?.role === 'admin';
+    const progress = Math.min(100, Math.max(0, analyzingProgress));
+    const currentStep = REVIEW_STEPS.reduce((acc, step, index) => (progress >= step.from ? index : acc), 0);
 
     return (
         <div className={styles.workspaceGrid}>
-            {/* Top: Main Action - Upload & Review (Full Width) */}
-            <div className={styles.mainActionArea}>
-                <div className={styles.sectionHeader}>
-                    <h2>🚀 发起招标文书审查</h2>
+            {/* 页面抬头 */}
+            <div className={styles.pageHead}>
+                <div>
+                    <div className={styles.pageEyebrow}>文件审查</div>
+                    <h1 className={styles.pageTitle}>
+                        {user ? `${user.name}，您好` : '审查工作台'}
+                    </h1>
+                    <p className={styles.pageDesc}>
+                        上传招标文书，系统将对照《公平竞争审查条例》与浙江省招投标领域细则逐条排查排除、限制竞争条款。
+                    </p>
                 </div>
+            </div>
+
+            {/* 投递台 */}
+            <section className={`${kit.card} ${styles.deskCard}`}>
+                <div className={kit.cardHeader}>
+                    <div>
+                        <h2 className={kit.cardTitle}>
+                            <span className={kit.cardTitleIcon}><UploadDocIcon size={17} /></span>
+                            招标文书合规审查投递台
+                        </h2>
+                    </div>
+                    <div className={styles.scopeTags}>
+                        <span className={styles.scopeLabel}>审查范围</span>
+                        {SCOPE_TAGS.map((tag, i) => (
+                            <React.Fragment key={tag}>
+                                {i > 0 && <span className={styles.scopeDot} aria-hidden="true">·</span>}
+                                <span className={styles.scopeTag}>{tag}</span>
+                            </React.Fragment>
+                        ))}
+                    </div>
+                </div>
+
                 <div className={styles.uploadWrapper}>
                     {isAnalyzing ? (
                         <div className={styles.analyzingState}>
-                            <div className={styles.spinner}></div>
-                            <div className={styles.analyzingText}>{analyzingStatus}</div>
-                            <div style={{ width: '80%', maxWidth: '480px', marginTop: '16px' }}>
-                                <div style={{
-                                    height: '8px',
-                                    background: '#e5e7eb',
-                                    borderRadius: '999px',
-                                    overflow: 'hidden',
-                                }}>
-                                    <div style={{
-                                        width: `${Math.min(100, Math.max(0, analyzingProgress))}%`,
-                                        height: '100%',
-                                        background: 'linear-gradient(90deg, #3b82f6, #6366f1)',
-                                        transition: 'width 400ms ease',
-                                    }} />
+                            <div className={styles.analyzingHead}>
+                                <span className={styles.analyzingIcon}>
+                                    <span className={`${kit.spinner} ${kit.spinnerLg}`} />
+                                </span>
+                                <div className={styles.analyzingInfo}>
+                                    <div className={styles.analyzingText}>{analyzingStatus}</div>
+                                    <div className={styles.analyzingSubText}>
+                                        {selectedFile ? selectedFile.name : '多智能体协同审查中'} · 请勿关闭页面
+                                    </div>
                                 </div>
-                                <div style={{
-                                    marginTop: '6px',
-                                    fontSize: '12px',
-                                    color: '#6b7280',
-                                    textAlign: 'right',
-                                }}>
-                                    {analyzingProgress}%
+                                <div className={styles.analyzingPct}>
+                                    <span className={kit.mono}>{progress}</span>%
                                 </div>
                             </div>
-                            <div className={styles.analyzingSubText}>AI 多智能体系统正在云端计算中...</div>
+
+                            <div className={styles.progressTrack}>
+                                <div className={styles.progressBar} style={{ width: `${progress}%` }} />
+                            </div>
+
+                            <ol className={styles.stepList}>
+                                {REVIEW_STEPS.map((step, index) => {
+                                    const state = index < currentStep ? 'done' : index === currentStep ? 'current' : 'todo';
+                                    return (
+                                        <li
+                                            key={step.label}
+                                            className={`${styles.stepItem} ${state === 'done' ? styles.stepDone : ''} ${state === 'current' ? styles.stepCurrent : ''}`}
+                                        >
+                                            <span className={styles.stepMark}>
+                                                {state === 'done' ? <CheckIcon size={12} strokeWidth={2.4} /> : index + 1}
+                                            </span>
+                                            <span>{step.label}</span>
+                                        </li>
+                                    );
+                                })}
+                            </ol>
                         </div>
                     ) : selectedFile ? (
                         <div className={styles.readyState}>
-                            <div className={styles.readyFileIcon}>📄</div>
+                            <div className={styles.readyFileIcon}>
+                                <FileTextIcon size={26} strokeWidth={1.5} />
+                                <span className={styles.readyFileExt}>
+                                    {(selectedFile.name.split('.').pop() || 'doc').toUpperCase()}
+                                </span>
+                            </div>
                             <div className={styles.readyFileInfo}>
-                                <div className={styles.readyFileName}>{selectedFile.name}</div>
-                                <div className={styles.readyFileSize}>{(selectedFile.size / 1024).toFixed(2)} KB</div>
+                                <div className={styles.readyFileName} title={selectedFile.name}>{selectedFile.name}</div>
+                                <div className={styles.readyFileSize}>
+                                    <span className={kit.mono}>{formatSize(selectedFile.size)}</span>
+                                    <span className={styles.readyDot} />
+                                    已就绪，可开始审查
+                                </div>
                             </div>
                             <div className={styles.readyActions}>
-                                <button className={styles.secondaryBtn} onClick={onRemoveFile}>重新上传</button>
-                                <button className={styles.primaryBtn} onClick={onStartReview}>开始审查</button>
+                                <button type="button" className={`${kit.btn} ${kit.btnSecondary}`} onClick={onRemoveFile}>
+                                    <RefreshIcon size={15} />
+                                    重新选择
+                                </button>
+                                <button type="button" className={`${kit.btn} ${kit.btnPrimary} ${styles.startBtn}`} onClick={onStartReview}>
+                                    <SparklesIcon size={16} />
+                                    开始智能审查
+                                </button>
                             </div>
                         </div>
                     ) : (
                         <FileUpload key={pendingFile ? 'pending' : 'new'} onFileSelect={onFileSelect} />
                     )}
                 </div>
-            </div>
+            </section>
 
-            {/* Bottom: The "History" - Recent Reviews */}
-            <div className={styles.historySection}>
-                <div className={styles.sectionHeader}>
-                    <h2>🕒 最近审查记录</h2>
-                    <button className={styles.linkBtn} onClick={onViewLedger}>查看全部台账</button>
+            {/* 最近审查记录 */}
+            <section className={`${kit.card} ${styles.historySection}`}>
+                <div className={kit.cardHeader}>
+                    <div>
+                        <h2 className={kit.cardTitle}>
+                            <span className={kit.cardTitleIcon}><HistoryIcon size={17} /></span>
+                            最近审查记录
+                        </h2>
+                        <p className={kit.cardSub}>
+                            {isAdmin ? '全部用户最近提交的审查记录' : '您最近提交的审查记录'}
+                        </p>
+                    </div>
+                    <button type="button" className={`${kit.btn} ${kit.btnSecondary} ${kit.btnSm}`} onClick={onViewLedger}>
+                        <LedgerIcon size={15} />
+                        查看全部台账
+                    </button>
                 </div>
-                <table className={styles.table}>
-                    <thead>
-                        <tr>
-                            <th>状态</th>
-                            <th>文件名称</th>
-                            {isAdmin && <th>提交账号</th>}
-                            <th>风险点</th>
-                            <th>审查时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {reviewRecords.length === 0 ? (
+
+                <div className={kit.tableWrap}>
+                    <table className={kit.table}>
+                        <thead>
                             <tr>
-                                <td colSpan={isAdmin ? 6 : 5} style={{ textAlign: 'center', padding: '60px 20px', color: '#9ca3af' }}>
-                                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-                                    <div style={{ fontSize: '14px' }}>暂无审查记录</div>
-                                    <div style={{ fontSize: '12px', marginTop: '8px', color: '#d1d5db' }}>上传文件开始审查</div>
-                                </td>
+                                <th style={{ width: 110 }}>状态</th>
+                                <th>文件名称</th>
+                                {isAdmin && <th style={{ width: 180 }}>提交账号</th>}
+                                <th style={{ width: 120 }}>风险点</th>
+                                <th style={{ width: 150 }}>审查时间</th>
+                                <th style={{ width: 120, textAlign: 'right' }}>操作</th>
                             </tr>
-                        ) : (
-                            reviewRecords.map((record) => (
-                                <tr key={record.id}>
-                                    <td>
-                                        {record.status === 'completed' && <span style={{ color: '#10b981', background: '#d1fae5', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>已完成</span>}
-                                        {record.status === 'processing' && <span style={{ color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>审查中</span>}
-                                        {record.status === 'pending' && <span style={{ color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>待处理</span>}
-                                        {record.status === 'ignored' && <span style={{ color: '#6b7280', background: '#e5e7eb', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>无需审查</span>}
-                                        {record.status === 'failed' && <span style={{ color: '#ef4444', background: '#fee2e2', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>失败</span>}
-                                    </td>
-                                    <td className={styles.fileName}>{record.fileName}</td>
-                                    {isAdmin && (
-                                        <td style={{ fontSize: '13px' }}>
-                                            <div style={{ fontWeight: 500 }}>{record.user?.name || '未知'}</div>
-                                            {record.user?.department && (
-                                                <div style={{ fontSize: '12px', color: '#6b7280' }}>{record.user.department}</div>
-                                            )}
-                                        </td>
-                                    )}
-                                    <td>
-                                        {record.status === 'ignored' ? '-' : (
-                                            record.riskCount > 0 ?
-                                                <span style={{ color: '#ef4444' }}>{record.riskCount} 个风险</span> :
-                                                <span style={{ color: '#10b981' }}>无风险</span>
-                                        )}
-                                    </td>
-                                    <td style={{ color: '#6b7280' }}>
-                                        {new Date(record.createdAt).toLocaleString()}
-                                    </td>
-                                    <td>
-                                        <button
-                                            className={styles.linkBtn}
-                                            onClick={() => onViewRecord(record)}
-                                        >
-                                            查看
-                                        </button>
+                        </thead>
+                        <tbody>
+                            {reviewRecords.length === 0 ? (
+                                <tr>
+                                    <td colSpan={isAdmin ? 6 : 5}>
+                                        <div className={kit.empty}>
+                                            <span className={kit.emptyIcon}><FileTextIcon size={24} strokeWidth={1.5} /></span>
+                                            <div className={kit.emptyTitle}>暂无审查记录</div>
+                                            <div className={kit.emptyDesc}>在上方投递台上传招标文书，开始第一次审查</div>
+                                        </div>
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                            ) : (
+                                reviewRecords.map((record) => (
+                                    <tr key={record.id} className={styles.recordRow} onClick={() => onViewRecord(record)}>
+                                        <td><RecordStatusBadge status={record.status} /></td>
+                                        <td>
+                                            <div className={styles.fileCell}>
+                                                <span className={styles.fileCellIcon}><FileTextIcon size={16} /></span>
+                                                <span className={styles.fileName} title={record.fileName}>{record.fileName}</span>
+                                            </div>
+                                        </td>
+                                        {isAdmin && (
+                                            <td>
+                                                <div className={kit.cellMain}>{record.user?.name || '未知'}</div>
+                                                {record.user?.department && (
+                                                    <div className={kit.cellSub}>{record.user.department}</div>
+                                                )}
+                                            </td>
+                                        )}
+                                        <td><RiskCountBadge status={record.status} riskCount={record.riskCount} /></td>
+                                        <td className={kit.cellNum}>{formatDateTime(record.createdAt)}</td>
+                                        <td style={{ textAlign: 'right' }}>
+                                            <button
+                                                type="button"
+                                                className={styles.viewBtn}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onViewRecord(record);
+                                                }}
+                                            >
+                                                查看报告
+                                                <ArrowRightIcon size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import styles from './page.module.css';
+import kit from '@/components/ui/kit.module.css';
+import { CloseIcon, KeyIcon, LockIcon } from '@/components/ui/Icons';
 
 interface ChangePasswordModalProps {
     /** 改密成功后由调用方决定后续动作（当前是强制重新登录） */
@@ -56,48 +57,80 @@ export default function ChangePasswordModal({ onSuccess, onClose }: ChangePasswo
     };
 
     return (
-        <div className={styles.modalOverlay} onClick={onClose}>
-            <div className={styles.modalContent} style={{ width: '400px' }} onClick={e => e.stopPropagation()}>
-                <h3 className={styles.modalTitle}>🔒 修改密码</h3>
+        <div className={kit.overlay} onClick={onClose}>
+            <div
+                className={kit.modal}
+                onClick={e => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="change-password-title"
+            >
+                <button type="button" className={kit.modalClose} onClick={onClose} aria-label="关闭">
+                    <CloseIcon size={16} />
+                </button>
+                <div className={kit.modalHeader}>
+                    <span className={kit.modalIcon}><KeyIcon size={19} /></span>
+                    <div>
+                        <h3 id="change-password-title" className={kit.modalTitle}>修改登录密码</h3>
+                        <p className={kit.modalDesc}>修改成功后需使用新密码重新登录</p>
+                    </div>
+                </div>
                 <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>当前密码</label>
-                        <input
-                            type="password"
-                            required
-                            value={form.currentPassword}
-                            onChange={e => setForm({ ...form, currentPassword: e.target.value })}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                            placeholder="请输入当前密码"
-                        />
+                    <div className={kit.modalBody}>
+                        <div className={kit.field} style={{ marginBottom: 14 }}>
+                            <label className={kit.label} htmlFor="cp-current">当前密码</label>
+                            <div className={kit.inputWrap}>
+                                <input
+                                    id="cp-current"
+                                    type="password"
+                                    required
+                                    className={kit.input}
+                                    value={form.currentPassword}
+                                    onChange={e => setForm({ ...form, currentPassword: e.target.value })}
+                                    placeholder="请输入当前密码"
+                                    autoComplete="current-password"
+                                />
+                                <span className={kit.inputIcon}><LockIcon size={16} /></span>
+                            </div>
+                        </div>
+                        <div className={kit.field} style={{ marginBottom: 14 }}>
+                            <label className={kit.label} htmlFor="cp-new">新密码</label>
+                            <div className={kit.inputWrap}>
+                                <input
+                                    id="cp-new"
+                                    type="password"
+                                    required
+                                    className={kit.input}
+                                    value={form.newPassword}
+                                    onChange={e => setForm({ ...form, newPassword: e.target.value })}
+                                    placeholder="至少 8 位，建议包含字母与数字"
+                                    minLength={6}
+                                    autoComplete="new-password"
+                                />
+                                <span className={kit.inputIcon}><KeyIcon size={16} /></span>
+                            </div>
+                        </div>
+                        <div className={kit.field}>
+                            <label className={kit.label} htmlFor="cp-confirm">确认新密码</label>
+                            <div className={kit.inputWrap}>
+                                <input
+                                    id="cp-confirm"
+                                    type="password"
+                                    required
+                                    className={kit.input}
+                                    value={form.confirmPassword}
+                                    onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
+                                    placeholder="再次输入新密码"
+                                    minLength={6}
+                                    autoComplete="new-password"
+                                />
+                                <span className={kit.inputIcon}><KeyIcon size={16} /></span>
+                            </div>
+                        </div>
                     </div>
-                    <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>新密码</label>
-                        <input
-                            type="password"
-                            required
-                            value={form.newPassword}
-                            onChange={e => setForm({ ...form, newPassword: e.target.value })}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                            placeholder="设置新密码 (至少6位)"
-                            minLength={6}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '24px' }}>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>确认新密码</label>
-                        <input
-                            type="password"
-                            required
-                            value={form.confirmPassword}
-                            onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                            placeholder="再次输入新密码"
-                            minLength={6}
-                        />
-                    </div>
-                    <div className={styles.modalActions}>
-                        <button type="button" className={styles.secondaryBtn} onClick={onClose}>取消</button>
-                        <button type="submit" className={styles.primaryBtn}>确认修改</button>
+                    <div className={kit.modalFooter}>
+                        <button type="button" className={`${kit.btn} ${kit.btnSecondary}`} onClick={onClose}>取消</button>
+                        <button type="submit" className={`${kit.btn} ${kit.btnPrimary}`}>确认修改</button>
                     </div>
                 </form>
             </div>

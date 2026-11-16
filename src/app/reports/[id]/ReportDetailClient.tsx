@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
+import BrandSeal from '@/components/ui/BrandSeal';
+import { AlertTriangleIcon, ArrowLeftIcon, BuildingIcon, CalendarIcon, CheckCircleIcon, ChevronRightIcon, FilesStackIcon, MapPinIcon } from '@/components/ui/Icons';
 
 interface Case {
     id: number;
@@ -48,17 +50,7 @@ function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
             {parts.map((part, index) => {
                 if (part.toLowerCase() === keyword.toLowerCase()) {
                     return (
-                        <mark
-                            key={index}
-                            className={styles.highlightMark}
-                            style={{
-                                backgroundColor: '#FBBF24',
-                                color: '#78350F',
-                                padding: '1px 2px',
-                                borderRadius: '2px',
-                                fontWeight: 500
-                            }}
-                        >
+                        <mark key={index} className={styles.highlightMark}>
                             {part}
                         </mark>
                     );
@@ -74,7 +66,6 @@ export default function ReportDetailClient({ report }: Props) {
     const [activeCaseId, setActiveCaseId] = useState<number | null>(report.cases[0]?.id || null);
     const sectionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const isScrollingRef = useRef(false);
-    const firstHighlightRef = useRef<HTMLElement | null>(null);
 
     // 获取高亮关键词
     const highlightKeyword = searchParams.get('highlight') || '';
@@ -105,7 +96,8 @@ export default function ReportDetailClient({ report }: Props) {
                     firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
                     // 添加闪烁动画效果
-                    (firstMark as HTMLElement).style.animation = 'highlightPulse 1.5s ease-in-out 2';
+                    // 闪烁动画类在本模块内定义，避免 CSS Modules 对 keyframes 改名后内联动画失效
+                    firstMark.classList.add(styles.markPulse);
                 }
             }, 300);
         }
@@ -185,117 +177,151 @@ export default function ReportDetailClient({ report }: Props) {
 
     return (
         <div className={styles.container}>
-            {/* Left Sidebar */}
-            <div className={styles.sidebar}>
-                <div className={styles.sidebarHeader}>
-                    <Link href={backLink} className={styles.backLink}>
-                        ← 返回案例库
-                    </Link>
-                    <div className={styles.sidebarTitle}>
-                        <span>📑</span>
-                        <span>目录</span>
-                    </div>
-                </div>
-                <div className={styles.sidebarContent}>
-                    {report.cases.map((item, index) => {
-                        const isExpanded = activeCaseId === item.id;
-                        return (
-                            <div
-                                key={item.id}
-                                className={`${styles.navItem} ${isExpanded ? styles.navItemExpanded : ''} ${activeCaseId === item.id ? styles.navItemActive : ''}`}
-                            >
-                                <div
-                                    className={styles.navItemHeader}
-                                    onClick={() => handleNavClick(item.id)}
-                                >
-                                    <div className={styles.navItemIcon}>
-                                        ▶
-                                    </div>
-                                    <div className={styles.navItemTitle}>
-                                        案例{index + 1}：<HighlightedText text={item.title} keyword={highlightKeyword} />
-                                    </div>
-                                </div>
-                                <div className={styles.navItemContent}>
-                                    <div className={styles.navItemDetails}>
-                                        <div className={styles.navItemMeta}>
-                                            <span className={styles.navItemMetaLabel}>违　　反：</span>
-                                            <span className={styles.navItemMetaValue}>
-                                                <HighlightedText text={item.violationClause || ''} keyword={highlightKeyword} />
-                                            </span>
-                                        </div>
-                                        <div className={styles.navItemMeta}>
-                                            <span className={styles.navItemMetaLabel}>文件名称：</span>
-                                            <span className={styles.navItemMetaValue}>
-                                                <HighlightedText text={item.documentName || ''} keyword={highlightKeyword} />
-                                            </span>
-                                        </div>
-                                        <div className={styles.navItemMeta}>
-                                            <span className={styles.navItemMetaLabel}>发文机构：</span>
-                                            <span className={styles.navItemMetaValue}>
-                                                <HighlightedText text={item.documentOrg || ''} keyword={highlightKeyword} />
-                                            </span>
-                                        </div>
-                                        <div className={styles.navItemMeta}>
-                                            <span className={styles.navItemMetaLabel}>地　　区：</span>
-                                            <span className={styles.navItemMetaValue}>
-                                                <HighlightedText text={item.province || ''} keyword={highlightKeyword} />
-                                            </span>
-                                        </div>
-                                        <div className={styles.navItemMeta}>
-                                            <span className={styles.navItemMetaLabel}>违规内容：</span>
-                                            <span className={styles.navItemMetaValue}>
-                                                <HighlightedText text={item.violationDetail || ''} keyword={highlightKeyword} />
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
+            <header className={styles.header}>
+                <Link href={backLink} className={styles.backLink}>
+                    <ArrowLeftIcon size={16} />
+                    <span>返回案例库</span>
+                </Link>
+                <span className={styles.headerDivider} aria-hidden="true" />
+                <h1 className={styles.headerTitle} title={report.title}>
+                    <HighlightedText text={report.title} keyword={highlightKeyword} />
+                </h1>
+                <span className={styles.headerCount}>
+                    共 <span className={styles.num}>{report.cases.length}</span> 个案例
+                </span>
+            </header>
 
-            {/* Right Content */}
-            <div className={styles.main}>
-                <div className={styles.docContainer}>
-                    <div className={styles.docPaper}>
-                        <h1 className={styles.reportTitle}>
-                            <HighlightedText text={report.title} keyword={highlightKeyword} />
-                        </h1>
-                        <div className={styles.reportMeta}>
-                            <span>发布日期：{report.publishDate}</span>
-                            <span>发布机构：{report.department}</span>
+            <div className={styles.body}>
+                {/* Left Sidebar */}
+                <nav className={styles.sidebar}>
+                    <div className={styles.sidebarHeader}>
+                        <div className={styles.sidebarTitle}>
+                            <FilesStackIcon size={16} />
+                            <span>目录</span>
                         </div>
-
-                        {report.cases.map((item, index) => (
-                            <div
-                                key={item.id}
-                                data-id={item.id}
-                                ref={el => { sectionRefs.current[item.id] = el; }}
-                                className={`${styles.caseSection} ${activeCaseId === item.id ? styles.caseSectionActive : ''}`}
-                            >
-                                <div className={styles.caseTitle}>
-                                    {index + 1}. <HighlightedText text={item.title} keyword={highlightKeyword} />
-                                </div>
-                                <div className={styles.caseContent}>
-                                    {item.content.split(/\r?\n/).map((para, i) => (
-                                        para.trim() ? (
-                                            <div key={i} style={{ textIndent: '2em', marginBottom: '8px' }}>
-                                                <HighlightedText text={para.trim()} keyword={highlightKeyword} />
+                    </div>
+                    <div className={styles.sidebarContent}>
+                        {report.cases.map((item, index) => {
+                            const isExpanded = activeCaseId === item.id;
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={`${styles.navItem} ${isExpanded ? styles.navItemExpanded : ''} ${activeCaseId === item.id ? styles.navItemActive : ''}`}
+                                >
+                                    <div
+                                        className={styles.navItemHeader}
+                                        onClick={() => handleNavClick(item.id)}
+                                    >
+                                        <div className={styles.navItemIcon}>
+                                            <ChevronRightIcon size={14} />
+                                        </div>
+                                        <div className={styles.navItemTitle}>
+                                            <span className={styles.navIndex}>案例{index + 1}</span>
+                                            <HighlightedText text={item.title} keyword={highlightKeyword} />
+                                        </div>
+                                    </div>
+                                    <div className={styles.navItemContent}>
+                                        <div className={styles.navItemDetails}>
+                                            <div className={styles.navItemMeta}>
+                                                <span className={styles.navItemMetaLabel}>违　　反：</span>
+                                                <span className={styles.navItemMetaValue}>
+                                                    <HighlightedText text={item.violationClause || ''} keyword={highlightKeyword} />
+                                                </span>
                                             </div>
-                                        ) : null
-                                    ))}
+                                            <div className={styles.navItemMeta}>
+                                                <span className={styles.navItemMetaLabel}>文件名称：</span>
+                                                <span className={styles.navItemMetaValue}>
+                                                    <HighlightedText text={item.documentName || ''} keyword={highlightKeyword} />
+                                                </span>
+                                            </div>
+                                            <div className={styles.navItemMeta}>
+                                                <span className={styles.navItemMetaLabel}>发文机构：</span>
+                                                <span className={styles.navItemMetaValue}>
+                                                    <HighlightedText text={item.documentOrg || ''} keyword={highlightKeyword} />
+                                                </span>
+                                            </div>
+                                            <div className={styles.navItemMeta}>
+                                                <span className={styles.navItemMetaLabel}>地　　区：</span>
+                                                <span className={styles.navItemMetaValue}>
+                                                    <HighlightedText text={item.province || ''} keyword={highlightKeyword} />
+                                                </span>
+                                            </div>
+                                            <div className={styles.navItemMeta}>
+                                                <span className={styles.navItemMetaLabel}>违规内容：</span>
+                                                <span className={styles.navItemMetaValue}>
+                                                    <HighlightedText text={item.violationDetail || ''} keyword={highlightKeyword} />
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className={styles.caseMeta}>
-                                    <span className={`${styles.tag} ${styles.tagViolation}`}>
-                                        违规类型：<HighlightedText text={item.violationType} keyword={highlightKeyword} />
-                                    </span>
-                                    <span className={`${styles.tag} ${styles.tagResult}`}>
-                                        处理结果：<HighlightedText text={item.result} keyword={highlightKeyword} />
-                                    </span>
-                                </div>
+                            );
+                        })}
+                    </div>
+                </nav>
+
+                {/* Right Content */}
+                <div className={styles.main}>
+                    <div className={styles.docContainer}>
+                        <article className={styles.docPaper}>
+                            <div className={styles.reportHead}>
+                                <BrandSeal char="通" size={30} variant="outline" />
+                                <span className={styles.reportEyebrow}>典型案例通报</span>
                             </div>
-                        ))}
+                            <h1 className={styles.reportTitle}>
+                                <HighlightedText text={report.title} keyword={highlightKeyword} />
+                            </h1>
+                            <div className={styles.reportMeta}>
+                                <span className={styles.metaItem}>
+                                    <CalendarIcon size={14} />
+                                    发布日期：{report.publishDate}
+                                </span>
+                                <span className={styles.metaItem}>
+                                    <BuildingIcon size={14} />
+                                    发布机构：{report.department}
+                                </span>
+                                {report.province && (
+                                    <span className={styles.metaItem}>
+                                        <MapPinIcon size={14} />
+                                        {report.province}
+                                    </span>
+                                )}
+                            </div>
+                            <div className={styles.reportRule} aria-hidden="true" />
+
+                            {report.cases.map((item, index) => (
+                                <div
+                                    key={item.id}
+                                    data-id={item.id}
+                                    ref={el => { sectionRefs.current[item.id] = el; }}
+                                    className={`${styles.caseSection} ${activeCaseId === item.id ? styles.caseSectionActive : ''}`}
+                                >
+                                    <div className={styles.caseIndex}>案例 {String(index + 1).padStart(2, '0')}</div>
+                                    <h2 className={styles.caseTitle}>
+                                        <HighlightedText text={item.title} keyword={highlightKeyword} />
+                                    </h2>
+                                    <div className={styles.caseContent}>
+                                        {item.content.split(/\r?\n/).map((para, i) => (
+                                            para.trim() ? (
+                                                <p key={i} className={styles.casePara}>
+                                                    <HighlightedText text={para.trim()} keyword={highlightKeyword} />
+                                                </p>
+                                            ) : null
+                                        ))}
+                                    </div>
+                                    <div className={styles.caseMeta}>
+                                        <div className={`${styles.tag} ${styles.tagViolation}`}>
+                                            <AlertTriangleIcon size={14} />
+                                            <span>违规类型：<HighlightedText text={item.violationType} keyword={highlightKeyword} /></span>
+                                        </div>
+                                        <div className={`${styles.tag} ${styles.tagResult}`}>
+                                            <CheckCircleIcon size={14} />
+                                            <span>处理结果：<HighlightedText text={item.result} keyword={highlightKeyword} /></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </article>
                     </div>
                 </div>
             </div>

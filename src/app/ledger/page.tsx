@@ -1,7 +1,25 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import styles from './page.module.css';
+import kit from '@/components/ui/kit.module.css';
+import DashboardNav from '@/app/dashboard/DashboardNav';
+import ChangePasswordModal from '@/app/dashboard/ChangePasswordModal';
+import type { DashboardUser } from '@/app/dashboard/types';
+import { RecordStatusBadge, RiskCountBadge, formatDateTime } from '@/app/dashboard/record-badges';
+import CustomSelect from '@/components/ui/CustomSelect';
+import {
+    AlertTriangleIcon,
+    ArrowLeftIcon,
+    ArrowRightIcon,
+    CheckCircleIcon,
+    CloseIcon,
+    FileTextIcon,
+    FilterIcon,
+    LedgerIcon,
+    SearchIcon,
+} from '@/components/ui/Icons';
 
 interface ReviewUser {
     name?: string;
@@ -18,24 +36,33 @@ interface ReviewRecord {
     user?: ReviewUser;
 }
 
-interface CurrentUser {
-    name?: string;
-    role?: string;
-}
+type StatusFilter = 'all' | 'completed' | 'processing' | 'pending' | 'ignored' | 'failed';
+type RiskFilter = 'all' | 'risky' | 'clean';
 
-const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-    completed: { label: '已完成', color: '#10b981', bg: '#d1fae5' },
-    ignored: { label: '无需审查', color: '#6b7280', bg: '#e5e7eb' },
-    failed: { label: '失败', color: '#ef4444', bg: '#fee2e2' },
-    processing: { label: '审查中', color: '#2563eb', bg: '#dbeafe' },
-    pending: { label: '待处理', color: '#b45309', bg: '#fef3c7' },
-};
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+    { value: 'all', label: '全部状态' },
+    { value: 'completed', label: '已完成' },
+    { value: 'processing', label: '审查中' },
+    { value: 'pending', label: '待处理' },
+    { value: 'ignored', label: '无需审查' },
+    { value: 'failed', label: '失败' },
+];
+
+const RISK_OPTIONS: { value: RiskFilter; label: string }[] = [
+    { value: 'all', label: '全部结果' },
+    { value: 'risky', label: '发现风险' },
+    { value: 'clean', label: '未发现风险' },
+];
 
 export default function LedgerPage() {
     const router = useRouter();
-    const [user, setUser] = useState<CurrentUser | null>(null);
+    const [user, setUser] = useState<DashboardUser | null>(null);
     const [records, setRecords] = useState<ReviewRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [keyword, setKeyword] = useState('');
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
 
     // 鉴权与数据并行加载：身份用于决定是否展示「提交账号」列；
     // 记录范围由后端按 session role 决定（admin 全部 / 普通自己）。
@@ -60,6 +87,11 @@ export default function LedgerPage() {
 
     const isAdmin = user?.role === 'admin';
 
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        router.push('/');
+    };
+
     const openRecord = (record: ReviewRecord) => {
         if (record.status === 'ignored') {
             alert(record.summary ?? '该文件无需审查');
@@ -68,82 +100,248 @@ export default function LedgerPage() {
         }
     };
 
-    return (
-        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <h1 style={{ fontSize: '22px', fontWeight: 600, margin: 0 }}>📋 全部审查台账</h1>
-                <button
-                    onClick={() => router.push('/dashboard')}
-                    style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '14px' }}
-                >
-                    ← 返回工作台
-                </button>
-            </div>
-            <p style={{ color: '#6b7280', fontSize: '13px', marginTop: 0, marginBottom: '20px' }}>
-                {isAdmin ? '当前显示：全部用户的审查记录' : '当前显示：我提交的审查记录'}
-            </p>
+    const stats = useMemo(() => {
+        const completed = records.filter(r => r.status === 'completed');
+        const risky = completed.filter(r => r.riskCount > 0);
+        return {
+            total: records.length,
+            completed: completed.length,
+            risky: risky.length,
+            riskItems: risky.reduce((sum, r) => sum + r.riskCount, 0),
+        };
+    }, [records]);
 
-            {isLoading ? (
-                <div style={{ textAlign: 'center', padding: '80px 20px', color: '#9ca3af' }}>正在加载台账...</div>
-            ) : records.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '80px 20px', color: '#9ca3af' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-                    <div style={{ fontSize: '14px' }}>暂无审查记录</div>
+    const filtered = useMemo(() => {
+        const k = keyword.trim().toLowerCase();
+        return records.filter((r) => {
+            if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+            if (riskFilter === 'risky' && !(r.status === 'completed' && r.riskCount > 0)) return false;
+            if (riskFilter === 'clean' && !(r.status === 'completed' && r.riskCount === 0)) return false;
+            if (!k) return true;
+            return [r.fileName, r.user?.name, r.user?.department]
+                .some(v => (v || '').toLowerCase().includes(k));
+        });
+    }, [records, keyword, statusFilter, riskFilter]);
+
+    const hasFilter = Boolean(keyword.trim()) || statusFilter !== 'all' || riskFilter !== 'all';
+    const resetFilters = () => {
+        setKeyword('');
+        setStatusFilter('all');
+        setRiskFilter('all');
+    };
+
+    return (
+        <div className={styles.page}>
+            <DashboardNav
+                activeTab="workspace"
+                onTabChange={(tab) => router.push(tab === 'workspace' ? '/dashboard' : `/dashboard?tab=${tab}`)}
+                user={user}
+                onOpenPasswordModal={() => setShowPasswordModal(true)}
+                onLogout={handleLogout}
+            />
+
+            <main className={styles.main}>
+                <div className={styles.breadcrumb}>
+                    <button type="button" className={styles.backLink} onClick={() => router.push('/dashboard')}>
+                        <ArrowLeftIcon size={14} />
+                        返回工作台
+                    </button>
+                    <span className={styles.crumbSep}>/</span>
+                    <span>审查台账</span>
                 </div>
-            ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                    <thead>
-                        <tr style={{ textAlign: 'left', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
-                            <th style={{ padding: '10px 12px' }}>状态</th>
-                            <th style={{ padding: '10px 12px' }}>文件名称</th>
-                            {isAdmin && <th style={{ padding: '10px 12px' }}>提交账号</th>}
-                            <th style={{ padding: '10px 12px' }}>风险点</th>
-                            <th style={{ padding: '10px 12px' }}>审查时间</th>
-                            <th style={{ padding: '10px 12px' }}>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {records.map(record => {
-                            const badge = STATUS_BADGE[record.status] ?? STATUS_BADGE.pending;
-                            return (
-                                <tr key={record.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                    <td style={{ padding: '10px 12px' }}>
-                                        <span style={{ color: badge.color, background: badge.bg, padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                                            {badge.label}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: '10px 12px' }}>{record.fileName}</td>
-                                    {isAdmin && (
-                                        <td style={{ padding: '10px 12px' }}>
-                                            <div style={{ fontWeight: 500 }}>{record.user?.name || '未知'}</div>
-                                            {record.user?.department && (
-                                                <div style={{ fontSize: '12px', color: '#6b7280' }}>{record.user.department}</div>
+
+                <header className={styles.head}>
+                    <div>
+                        <div className={styles.eyebrow}>审查台账</div>
+                        <h1 className={styles.title}>全部审查台账</h1>
+                        <p className={styles.desc}>
+                            {isAdmin ? '当前显示：全部用户的审查记录' : '当前显示：我提交的审查记录'}
+                        </p>
+                    </div>
+                </header>
+
+                {/* 统计摘要 */}
+                <section className={styles.stats}>
+                    <div className={styles.statCard}>
+                        <span className={styles.statIcon}><LedgerIcon size={18} /></span>
+                        <div>
+                            <div className={styles.statLabel}>审查记录</div>
+                            <div className={styles.statValue}>{isLoading ? '—' : stats.total}<small>份</small></div>
+                        </div>
+                    </div>
+                    <div className={styles.statCard}>
+                        <span className={`${styles.statIcon} ${styles.statIconOk}`}><CheckCircleIcon size={18} /></span>
+                        <div>
+                            <div className={styles.statLabel}>已完成审查</div>
+                            <div className={styles.statValue}>{isLoading ? '—' : stats.completed}<small>份</small></div>
+                        </div>
+                    </div>
+                    <div className={styles.statCard}>
+                        <span className={`${styles.statIcon} ${styles.statIconHigh}`}><AlertTriangleIcon size={18} /></span>
+                        <div>
+                            <div className={styles.statLabel}>发现风险文书</div>
+                            <div className={styles.statValue}>{isLoading ? '—' : stats.risky}<small>份</small></div>
+                        </div>
+                    </div>
+                    <div className={styles.statCard}>
+                        <span className={`${styles.statIcon} ${styles.statIconSeal}`}><FileTextIcon size={18} /></span>
+                        <div>
+                            <div className={styles.statLabel}>累计风险条款</div>
+                            <div className={styles.statValue}>{isLoading ? '—' : stats.riskItems}<small>项</small></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section className={`${kit.card} ${styles.tableCard}`}>
+                    {/* 工具栏 */}
+                    <div className={styles.toolbar}>
+                        <div className={styles.searchField}>
+                            <span className={styles.searchIcon}><SearchIcon size={15} /></span>
+                            <input
+                                className={styles.searchInput}
+                                placeholder={isAdmin ? '搜索文件名称、提交人或单位…' : '搜索文件名称…'}
+                                value={keyword}
+                                onChange={(e) => setKeyword(e.target.value)}
+                                aria-label="搜索台账"
+                            />
+                            {keyword && (
+                                <button type="button" className={styles.searchClear} onClick={() => setKeyword('')} aria-label="清空搜索">
+                                    <CloseIcon size={13} />
+                                </button>
+                            )}
+                        </div>
+                        <div className={styles.filterGroup}>
+                            <div className={styles.filterItem}>
+                                <CustomSelect<StatusFilter>
+                                    size="sm"
+                                    value={statusFilter}
+                                    onChange={setStatusFilter}
+                                    options={STATUS_OPTIONS}
+                                    icon={<FilterIcon size={13} />}
+                                    aria-label="按状态筛选"
+                                />
+                            </div>
+                            <div className={styles.filterItem}>
+                                <CustomSelect<RiskFilter>
+                                    size="sm"
+                                    value={riskFilter}
+                                    onChange={setRiskFilter}
+                                    options={RISK_OPTIONS}
+                                    icon={<AlertTriangleIcon size={13} />}
+                                    aria-label="按审查结果筛选"
+                                />
+                            </div>
+                            {hasFilter && (
+                                <button type="button" className={`${kit.btn} ${kit.btnGhost} ${kit.btnSm}`} onClick={resetFilters}>
+                                    重置
+                                </button>
+                            )}
+                        </div>
+                        <div className={styles.resultCount}>
+                            {hasFilter ? <>筛选出 <b>{filtered.length}</b> / {records.length} 条</> : <>共 <b>{records.length}</b> 条</>}
+                        </div>
+                    </div>
+
+                    {isLoading ? (
+                        <div className={styles.skeletonList} aria-label="正在加载台账">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i} className={styles.skeletonRow}>
+                                    <span className={styles.skeletonPill} />
+                                    <span className={styles.skeletonLine} />
+                                    <span className={styles.skeletonShort} />
+                                </div>
+                            ))}
+                        </div>
+                    ) : records.length === 0 ? (
+                        <div className={kit.empty}>
+                            <span className={kit.emptyIcon}><LedgerIcon size={24} strokeWidth={1.5} /></span>
+                            <div className={kit.emptyTitle}>暂无审查记录</div>
+                            <div className={kit.emptyDesc}>在工作台上传招标文书后，记录会出现在这里</div>
+                            <button
+                                type="button"
+                                className={`${kit.btn} ${kit.btnPrimary} ${kit.btnSm}`}
+                                style={{ marginTop: 12 }}
+                                onClick={() => router.push('/dashboard')}
+                            >
+                                前往工作台
+                            </button>
+                        </div>
+                    ) : filtered.length === 0 ? (
+                        <div className={kit.empty}>
+                            <span className={kit.emptyIcon}><SearchIcon size={24} strokeWidth={1.5} /></span>
+                            <div className={kit.emptyTitle}>没有符合条件的记录</div>
+                            <div className={kit.emptyDesc}>调整关键词或筛选条件后重试</div>
+                            <button
+                                type="button"
+                                className={`${kit.btn} ${kit.btnSecondary} ${kit.btnSm}`}
+                                style={{ marginTop: 12 }}
+                                onClick={resetFilters}
+                            >
+                                清除筛选
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={kit.tableWrap}>
+                            <table className={kit.table}>
+                                <thead>
+                                    <tr>
+                                        <th className={styles.colNo}>序号</th>
+                                        <th className={styles.colStatus}>状态</th>
+                                        <th>文件名称</th>
+                                        {isAdmin && <th className={styles.colUser}>提交账号</th>}
+                                        <th className={styles.colRisk}>风险点</th>
+                                        <th className={styles.colTime}>审查时间</th>
+                                        <th className={styles.colAction}>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map((record, index) => (
+                                        <tr key={record.id} className={styles.row} onClick={() => openRecord(record)}>
+                                            <td className={`${kit.cellNum} ${styles.colNo}`}>{String(index + 1).padStart(2, '0')}</td>
+                                            <td><RecordStatusBadge status={record.status} /></td>
+                                            <td>
+                                                <div className={styles.fileCell}>
+                                                    <span className={styles.fileIcon}><FileTextIcon size={16} /></span>
+                                                    <span className={styles.fileName} title={record.fileName}>{record.fileName}</span>
+                                                </div>
+                                            </td>
+                                            {isAdmin && (
+                                                <td>
+                                                    <div className={kit.cellMain}>{record.user?.name || '未知'}</div>
+                                                    {record.user?.department && (
+                                                        <div className={kit.cellSub}>{record.user.department}</div>
+                                                    )}
+                                                </td>
                                             )}
-                                        </td>
-                                    )}
-                                    <td style={{ padding: '10px 12px' }}>
-                                        {record.status === 'ignored' ? '-' : (
-                                            record.riskCount > 0
-                                                ? <span style={{ color: '#ef4444' }}>{record.riskCount} 个风险</span>
-                                                : <span style={{ color: '#10b981' }}>无风险</span>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: '10px 12px', color: '#6b7280' }}>
-                                        {new Date(record.createdAt).toLocaleString()}
-                                    </td>
-                                    <td style={{ padding: '10px 12px' }}>
-                                        <button
-                                            onClick={() => openRecord(record)}
-                                            style={{ border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '14px', padding: 0 }}
-                                        >
-                                            查看
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                            <td><RiskCountBadge status={record.status} riskCount={record.riskCount} /></td>
+                                            <td className={kit.cellNum}>{formatDateTime(record.createdAt)}</td>
+                                            <td className={styles.colAction}>
+                                                <button
+                                                    type="button"
+                                                    className={styles.viewBtn}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openRecord(record);
+                                                    }}
+                                                >
+                                                    查看
+                                                    <ArrowRightIcon size={14} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+            </main>
+
+            {showPasswordModal && (
+                <ChangePasswordModal
+                    onSuccess={handleLogout}
+                    onClose={() => setShowPasswordModal(false)}
+                />
             )}
         </div>
     );

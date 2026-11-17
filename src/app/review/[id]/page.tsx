@@ -70,7 +70,15 @@ export default function ReviewPage() {
     // 原始 .docx 高保真还原（docx-preview）。docxAvailable: null=检测中 / true=有原文件用 docx-preview / false=回退 mammoth。
     const docxRef = useRef<HTMLDivElement>(null);
     const docxBlobRef = useRef<Blob | null>(null);
+    const naturalMaxWidthRef = useRef<number>(0);
     const [docxAvailable, setDocxAvailable] = useState<boolean | null>(null);
+    const [docxReady, setDocxReady] = useState(false);
+    const [docxRenderSeq, setDocxRenderSeq] = useState(0);
+    const [zoomMode, setZoomMode] = useState<'fit' | 'manual'>('fit');
+    const [manualZoom, setManualZoom] = useState(1);
+    const [fitZoom, setFitZoom] = useState(1);
+
+    const effectiveZoom = zoomMode === 'fit' ? fitZoom : manualZoom;
 
     useEffect(() => {
         const container = docContainerRef.current;
@@ -93,13 +101,18 @@ export default function ReviewPage() {
             const dataStr = sessionStorage.getItem('temp_review_data');
             if (!dataStr) {
                 setSummary('未找到审查数据，请重新上传文件。');
+                setDocxAvailable(false);
                 return;
             }
             try {
                 const data = JSON.parse(dataStr);
 
                 if (data.fileName) setFileName(data.fileName);
-                if (data.id) setRealReviewId(data.id);
+                if (data.id) {
+                    setRealReviewId(data.id);
+                } else {
+                    setDocxAvailable(false);
+                }
 
                 let newDocContent: DocParagraph[] = [];
                 if (data.html) {
@@ -146,6 +159,7 @@ export default function ReviewPage() {
             } catch (e) {
                 console.error('Failed to parse temp data', e);
                 setSummary('数据加载失败，请重试。');
+                setDocxAvailable(false);
             }
             return;
         }
@@ -220,14 +234,18 @@ export default function ReviewPage() {
 
     useEffect(() => {
         if (!activeRiskId) return;
+        if (docxAvailable === null || (docxAvailable === true && !docxReady)) return;
+
         const risk = risks.find(r => r.id === activeRiskId);
         clearHighlights();
         if (!risk) return;
 
-        if (risk.paragraphIds && risk.paragraphIds.length > 0) {
+        if (docxAvailable !== true && risk.paragraphIds && risk.paragraphIds.length > 0) {
             const element = document.getElementById(risk.paragraphIds[0]);
-            if (element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return;
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
         }
 
         if (!risk.snippet) return;
@@ -266,17 +284,29 @@ export default function ReviewPage() {
             }
         };
         setTimeout(() => scrollToHighlight(), 150);
-    }, [activeRiskId, risks]);
+    }, [activeRiskId, risks, docxAvailable, docxReady, docxRenderSeq]);
 
     // 检测并拉取原始 .docx（旧记录/非docx 会 404 → 回退 mammoth 渲染）
     useEffect(() => {
+        if (id === 'temp' && !realReviewId) return;
         const reviewId = realReviewId || (id && id !== 'temp' ? id : null);
-        if (!reviewId) { setDocxAvailable(false); return; }
+        if (!reviewId) {
+            setDocxAvailable(false);
+            setDocxReady(false);
+            return;
+        }
         let cancelled = false;
+        setDocxAvailable(null);
+        setDocxReady(false);
         fetch(`/api/reviews/${reviewId}/file`)
             .then(res => { if (!res.ok) throw new Error('no original file'); return res.blob(); })
             .then(blob => { if (!cancelled) { docxBlobRef.current = blob; setDocxAvailable(true); } })
-            .catch(() => { if (!cancelled) setDocxAvailable(false); });
+            .catch(() => {
+                if (!cancelled) {
+                    setDocxReady(false);
+                    setDocxAvailable(false);
+                }
+            });
         return () => { cancelled = true; };
     }, [realReviewId, id]);
 
@@ -284,24 +314,99 @@ export default function ReviewPage() {
     useEffect(() => {
         if (docxAvailable !== true || !docxRef.current || !docxBlobRef.current) return;
         let cancelled = false;
+        setDocxReady(false);
+        naturalMaxWidthRef.current = 0;
+
         (async () => {
             try {
                 const { renderAsync } = await import('docx-preview');
                 if (cancelled || !docxRef.current) return;
                 docxRef.current.innerHTML = '';
                 await renderAsync(docxBlobRef.current!, docxRef.current, undefined, {
-                    inWrapper: false,
-                    ignoreHeight: true,
-                    ignoreWidth: true,        // 用容器宽度，避免保留 Word 页宽导致内容偏右
-                    ignoreLastRenderedPageBreak: true,
+                    inWrapper: true,                     // 使用多页纸张包装器
+                    ignoreWidth: false,                  // 100% 保留原文档每节真实页宽（支持纵向A4与横向宽表混排！）
+                    ignoreHeight: false,                 // 保留原文档真实页高与分页留白
+                    ignoreFonts: false,                  // 保留原文档设定的全部字体
+                    breakPages: true,                    // 启用真实分页显示
+                    renderHeaders: true,                 // 还原页眉（如招标编号、页眉横线）
+                    renderFooters: true,                 // 还原页脚与页码
+                    renderFootnotes: true,               // 还原脚注
+                    renderEndnotes: true,                // 还原尾注
+                    ignoreLastRenderedPageBreak: false,  // 尊重 Word 保存的分页断点
+                    experimental: true,                  // 启用制表位(tab stops)等精细排版计算
+                    useBase64URL: true,                  // 稳定还原文档内嵌图片与签章
                 });
+                if (cancelled || !docxRef.current) return;
+
+                const sections = docxRef.current.querySelectorAll('section.docx');
+                const widths = Array.from(sections)
+                    .map(s => (s as HTMLElement).offsetWidth)
+                    .filter(w => w > 0);
+                const maxPageWidth = widths.length > 0 ? Math.max(...widths) : 794;
+                naturalMaxWidthRef.current = maxPageWidth;
+
+                const containerWidth = docContainerRef.current?.clientWidth ?? 0;
+                if (containerWidth > 0 && maxPageWidth > 0) {
+                    const availableWidth = Math.max(240, containerWidth - 64);
+                    const nextFit = Math.min(1, Math.max(0.55, Math.floor((availableWidth / maxPageWidth) * 100) / 100));
+                    setFitZoom(nextFit);
+                } else {
+                    setFitZoom(1);
+                }
+
+                setDocxReady(true);
+                setDocxRenderSeq(seq => seq + 1);
             } catch (e) {
                 console.error('docx-preview 渲染失败，回退 mammoth:', e);
-                if (!cancelled) setDocxAvailable(false);
+                if (!cancelled) {
+                    setDocxReady(false);
+                    setDocxAvailable(false);
+                }
             }
         })();
         return () => { cancelled = true; };
     }, [docxAvailable]);
+
+    // 监听文档面板尺寸变化，动态重算“适应页宽”缩放比例
+    useEffect(() => {
+        if (docxAvailable !== true || !docxReady) return;
+        const container = docContainerRef.current;
+        if (!container || typeof ResizeObserver === 'undefined') return;
+
+        const recalcFitZoom = () => {
+            const maxPageWidth = naturalMaxWidthRef.current;
+            if (!maxPageWidth || maxPageWidth <= 0) return;
+            const availableWidth = Math.max(240, container.clientWidth - 64);
+            const nextFit = Math.min(1, Math.max(0.55, Math.floor((availableWidth / maxPageWidth) * 100) / 100));
+            setFitZoom(prev => (prev === nextFit ? prev : nextFit));
+        };
+
+        recalcFitZoom();
+        const observer = new ResizeObserver(recalcFitZoom);
+        observer.observe(container);
+        return () => observer.disconnect();
+    }, [docxAvailable, docxReady]);
+
+    const clampManualZoom = (val: number) => Math.min(1.5, Math.max(0.6, Math.round(val * 10) / 10));
+
+    const handleZoomOut = () => {
+        setZoomMode('manual');
+        setManualZoom(clampManualZoom(effectiveZoom - 0.1));
+    };
+
+    const handleZoomIn = () => {
+        setZoomMode('manual');
+        setManualZoom(clampManualZoom(effectiveZoom + 0.1));
+    };
+
+    const handleZoomReset = () => {
+        setZoomMode('manual');
+        setManualZoom(1);
+    };
+
+    const handleZoomFit = () => {
+        setZoomMode('fit');
+    };
 
     const handleRiskClick = (riskId: string) => {
         setActiveRiskId(riskId);
@@ -401,57 +506,131 @@ export default function ReviewPage() {
 
             <div className={styles.main}>
                 <div className={styles.docPanel} ref={docContainerRef}>
-                    <div className={styles.docPaper}>
-                        {docxAvailable === true && (
-                            <div ref={docxRef} className={styles.htmlContent} data-html-content="true" />
-                        )}
-                        {docxAvailable !== true && docContent.length === 0 && (
-                            <div className={styles.docEmpty}>
-                                <FileTextIcon size={16} />
-                                文档内容为空或正在加载...
-                            </div>
-                        )}
-                        {docxAvailable !== true && docContent.map(para => {
-                            const linkedRisks = risks.filter(r => r.paragraphIds && r.paragraphIds.includes(para.id));
-                            const hasRisk = linkedRisks.length > 0;
-                            const isActive = activeRiskId && activeRisk?.paragraphIds?.includes(para.id);
-
-                            return (
-                                <div
-                                    key={para.id}
-                                    id={para.id}
-                                    className={`
-                                        ${para.type === 'title' ? styles.docTitle : styles.docParagraph}
-                                        ${hasRisk ? styles.highlight : ''}
-                                        ${isActive ? styles.highlightActive : ''}
-                                    `}
-                                    onClick={() => {
-                                        if (linkedRisks.length > 0) handleRiskClick(linkedRisks[0].id);
-                                    }}
+                    {docxAvailable === true && docxReady && (
+                        <div className={styles.zoomBarWrap}>
+                            <div className={styles.zoomBar} role="toolbar" aria-label="文档页面缩放">
+                                <button
+                                    type="button"
+                                    className={`${styles.zoomBtn} ${zoomMode === 'fit' ? styles.zoomBtnActive : ''}`}
+                                    onClick={handleZoomFit}
+                                    title="自动适应面板宽度"
                                 >
-                                    {para.type === 'html' ? (
-                                        <div
-                                            className={styles.htmlContent}
-                                            data-html-content="true"
-                                            dangerouslySetInnerHTML={{ __html: para.html ?? '' }}
-                                        />
-                                    ) : para.type === 'smart_table' ? (
-                                        <div className={styles.markdownTableWrapper}>
-                                            <SmartTable rows={para.rows as string[][]} maxCols={para.maxCols} />
-                                        </div>
-                                    ) : para.type === 'table' ? (
-                                        <div className={styles.markdownTableWrapper}>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                {para.text}
-                                            </ReactMarkdown>
-                                        </div>
-                                    ) : (
-                                        formatParagraphText(para.text ?? '')
-                                    )}
+                                    适应页宽
+                                </button>
+                                <span className={styles.zoomDivider} aria-hidden="true" />
+                                <button
+                                    type="button"
+                                    className={styles.zoomBtn}
+                                    onClick={handleZoomOut}
+                                    disabled={effectiveZoom <= 0.6}
+                                    title="缩小"
+                                    aria-label="缩小"
+                                >
+                                    -
+                                </button>
+                                <button
+                                    type="button"
+                                    className={styles.zoomValueBtn}
+                                    onClick={handleZoomReset}
+                                    title="恢复 100% 原始尺寸"
+                                >
+                                    {Math.round(effectiveZoom * 100)}%
+                                </button>
+                                <button
+                                    type="button"
+                                    className={styles.zoomBtn}
+                                    onClick={handleZoomIn}
+                                    disabled={effectiveZoom >= 1.5}
+                                    title="放大"
+                                    aria-label="放大"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {(docxAvailable === null || (docxAvailable === true && !docxReady)) && (
+                        <div className={styles.docSkeletonPaper} aria-busy="true" aria-live="polite">
+                            <div className={styles.docSkeletonStatus}>
+                                <span className={styles.docSkeletonSpinner} aria-hidden="true" />
+                                <span>正在还原原文件版式…</span>
+                            </div>
+                            <div className={styles.docSkeletonTitle} />
+                            <div className={styles.docSkeletonLines}>
+                                <div className={styles.docSkeletonLine} style={{ width: '92%' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '100%' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '88%' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '96%' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '74%' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '94%', marginTop: '12px' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '100%' }} />
+                                <div className={styles.docSkeletonLine} style={{ width: '85%' }} />
+                            </div>
+                        </div>
+                    )}
+
+                    {docxAvailable === true && (
+                        <div className={`${styles.docxStage} ${docxReady ? '' : styles.docxStageHidden}`}>
+                            <div
+                                ref={docxRef}
+                                className={styles.docxNative}
+                                data-html-content="true"
+                                style={{ zoom: docxReady ? effectiveZoom : 1 }}
+                            />
+                        </div>
+                    )}
+
+                    {docxAvailable === false && (
+                        <div className={styles.docPaper}>
+                            {docContent.length === 0 && (
+                                <div className={styles.docEmpty}>
+                                    <FileTextIcon size={16} />
+                                    文档内容为空或正在加载...
                                 </div>
-                            );
-                        })}
-                    </div>
+                            )}
+                            {docContent.map(para => {
+                                const linkedRisks = risks.filter(r => r.paragraphIds && r.paragraphIds.includes(para.id));
+                                const hasRisk = linkedRisks.length > 0;
+                                const isActive = activeRiskId && activeRisk?.paragraphIds?.includes(para.id);
+
+                                return (
+                                    <div
+                                        key={para.id}
+                                        id={para.id}
+                                        className={`
+                                            ${para.type === 'title' ? styles.docTitle : styles.docParagraph}
+                                            ${hasRisk ? styles.highlight : ''}
+                                            ${isActive ? styles.highlightActive : ''}
+                                        `}
+                                        onClick={() => {
+                                            if (linkedRisks.length > 0) handleRiskClick(linkedRisks[0].id);
+                                        }}
+                                    >
+                                        {para.type === 'html' ? (
+                                            <div
+                                                className={styles.htmlContent}
+                                                data-html-content="true"
+                                                dangerouslySetInnerHTML={{ __html: para.html ?? '' }}
+                                            />
+                                        ) : para.type === 'smart_table' ? (
+                                            <div className={styles.markdownTableWrapper}>
+                                                <SmartTable rows={para.rows as string[][]} maxCols={para.maxCols} />
+                                            </div>
+                                        ) : para.type === 'table' ? (
+                                            <div className={styles.markdownTableWrapper}>
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {para.text}
+                                                </ReactMarkdown>
+                                            </div>
+                                        ) : (
+                                            formatParagraphText(para.text ?? '')
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 <aside className={styles.reviewPanel}>

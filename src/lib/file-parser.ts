@@ -38,8 +38,8 @@ export interface ParsedDocument {
     html: string;  // Rich HTML for frontend display (preserves table structure)
 }
 
-export async function extractTextFromFile(file: File): Promise<ParsedDocument> {
-    const buffer = Buffer.from(await file.arrayBuffer());
+export async function extractTextFromFile(file: File, preloadedBuffer?: Buffer): Promise<ParsedDocument> {
+    const buffer = preloadedBuffer ?? Buffer.from(await file.arrayBuffer());
     const fileType = file.type;
     const fileName = file.name.toLowerCase();
 

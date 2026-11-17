@@ -80,20 +80,29 @@ const highlightByNormalizedMatch = (container: HTMLElement, originalText: string
     const endIndex = textNodes.indexOf(endEntry.node);
     if (startIndex === -1 || endIndex === -1) return;
 
+    // 先切分结束节点尾部，再切分起始节点头部，确保同节点命中时偏移量不失效
+    if (endEntry.offset + 1 < endEntry.node.data.length) {
+        endEntry.node.splitText(endEntry.offset + 1);
+    }
+
     for (let i = startIndex; i <= endIndex; i++) {
-        const node = textNodes[i];
-        const parent = node.parentNode;
-        if (!parent) continue;
+        const rawNode = textNodes[i];
+        const targetNode =
+            i === startIndex && startEntry.offset > 0
+                ? rawNode.splitText(startEntry.offset)
+                : rawNode;
+
+        const parent = targetNode.parentNode;
+        if (!parent || !targetNode.data) continue;
 
         const mark = document.createElement('mark');
         mark.className = 'risk-highlight';
         mark.style.backgroundColor = 'rgba(252, 165, 165, 0.7)';
-        mark.style.padding = '3px 0';
+        mark.style.padding = '1px 0';
         mark.style.borderRadius = '2px';
-        mark.style.fontWeight = '500';
 
-        parent.replaceChild(mark, node);
-        mark.appendChild(node);
+        parent.replaceChild(mark, targetNode);
+        mark.appendChild(targetNode);
     }
 };
 

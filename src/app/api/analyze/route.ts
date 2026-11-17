@@ -312,10 +312,12 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
-        // Extract text from file
+        // 一次性读取文件 Buffer，避免请求流二次消费导致原始 .docx 落盘失败
+        let fileBuffer: Buffer;
         let parsedDoc;
         try {
-            parsedDoc = await extractTextFromFile(file);
+            fileBuffer = Buffer.from(await file.arrayBuffer());
+            parsedDoc = await extractTextFromFile(file, fileBuffer);
             console.log(`Extracted ${parsedDoc.text.length} characters from ${fileName}`);
             await logSuccess('upload_file', userId, fileName, { fileSize: file.size, textLength: parsedDoc.text.length }, req);
         } catch (error: any) {
@@ -356,7 +358,7 @@ export async function POST(req: NextRequest) {
                 await mkdir(uploadsDir, { recursive: true });
                 await writeFile(
                     path.join(uploadsDir, `${record.id}.docx`),
-                    Buffer.from(await file.arrayBuffer())
+                    fileBuffer
                 );
             } catch (e) {
                 console.error('[Analyze] 存储原始文档失败（不影响审查）:', e);

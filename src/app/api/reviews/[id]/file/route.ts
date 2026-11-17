@@ -31,7 +31,8 @@ export async function GET(
     }
 
     try {
-        const filePath = path.join(process.cwd(), 'data', 'uploads', `${id}.docx`);
+        const safeId = path.basename(id);
+        const filePath = path.join(process.cwd(), 'data', 'uploads', `${safeId}.docx`);
         const buf = await readFile(filePath);
         return new NextResponse(new Uint8Array(buf), {
             headers: {

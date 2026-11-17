@@ -249,10 +249,33 @@ button:disabled {
   text-align: center;
 }
 
-/* docx-preview 渲染的 Word 页面：Word 默认页边距(约 90pt≈120px)在审查页的窄文档面板里
-   过大，会让正文挤成很窄一条。这里收窄左右内边距，让内容填充可用宽度。 */
-section.docx {
-  padding: 32px 40px !important;
-  box-sizing: border-box !important;
-  width: 100% !important;
+/* 公文常用商业字体本地别名回退（零网络请求，精准回退到系统宋体/仿宋/楷体） */
+@font-face {
+  font-family: '方正小标宋简体';
+  src: local("FZXiaoBiaoSong-B05S"), local("方正小标宋简体"), local("STSongti-SC-Bold"), local("Songti SC"), local("SimSun");
+}
+
+@font-face {
+  font-family: 'FZXiaoBiaoSong-B05S';
+  src: local("FZXiaoBiaoSong-B05S"), local("方正小标宋简体"), local("STSongti-SC-Bold"), local("Songti SC"), local("SimSun");
+}
+
+@font-face {
+  font-family: '仿宋_GB2312';
+  src: local("FangSong_GB2312"), local("仿宋_GB2312"), local("STFangsong"), local("FangSong");
+}
+
+@font-face {
+  font-family: 'FangSong_GB2312';
+  src: local("FangSong_GB2312"), local("仿宋_GB2312"), local("STFangsong"), local("FangSong");
+}
+
+@font-face {
+  font-family: '楷体_GB2312';
+  src: local("KaiTi_GB2312"), local("楷体_GB2312"), local("STKaiti"), local("KaiTi");
+}
+
+@font-face {
+  font-family: 'KaiTi_GB2312';
+  src: local("KaiTi_GB2312"), local("楷体_GB2312"), local("STKaiti"), local("KaiTi");
 }

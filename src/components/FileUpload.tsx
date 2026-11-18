@@ -67,13 +67,17 @@ export default function FileUpload({ onFileSelect }: Props) {
                     id="fileInput"
                     className={styles.hiddenInput}
                     onChange={handleFileSelect}
-                    accept=".docx,.txt"
+                    accept=".docx,.pdf,.txt"
                 />
                 <label htmlFor="fileInput" className={styles.label}>
                     {file ? (
                         <div className={styles.fileInfo}>
                             <span className={styles.fileName}>{file.name}</span>
-                            <span className={styles.fileSize}>{(file.size / 1024).toFixed(2)} KB</span>
+                            <span className={styles.fileSize}>
+                                {file.size >= 1024 * 1024
+                                    ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+                                    : `${(file.size / 1024).toFixed(1)} KB`}
+                            </span>
                         </div>
                     ) : (
                         <>
@@ -84,7 +88,7 @@ export default function FileUpload({ onFileSelect }: Props) {
                                 )}
                             </p>
                             <span className={styles.hint}>
-                                支持 <b>.docx</b> 格式，单个文件不超过 10MB · 自动对照《浙江省招标投标领域公平竞争审查细则》
+                                支持 .docx / 文字版 .pdf 格式，单个文件不超过 50MB · 自动对照《浙江省招标投标领域公平竞争审查细则》
                             </span>
                         </>
                     )}

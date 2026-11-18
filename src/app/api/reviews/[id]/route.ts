@@ -44,14 +44,19 @@ export async function DELETE(
             }),
         ]);
 
-        // 同步清理磁盘上的原始上传文档（若不存在则静默忽略）
+        // 同步清理磁盘上的原始上传文档（.docx / .pdf，若不存在则静默忽略）
         const safeId = path.basename(id);
-        const uploadPath = path.join(process.cwd(), 'data', 'uploads', `${safeId}.docx`);
-        await unlink(uploadPath).catch((err: NodeJS.ErrnoException) => {
-            if (err.code !== 'ENOENT') {
-                console.warn('[Reviews] Failed to remove uploaded file:', uploadPath, err.message);
-            }
-        });
+        const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+        await Promise.all(
+            ['docx', 'pdf'].map(ext => {
+                const uploadPath = path.join(uploadsDir, `${safeId}.${ext}`);
+                return unlink(uploadPath).catch((err: NodeJS.ErrnoException) => {
+                    if (err.code !== 'ENOENT') {
+                        console.warn('[Reviews] Failed to remove uploaded file:', uploadPath, err.message);
+                    }
+                });
+            })
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

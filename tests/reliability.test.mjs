@@ -119,6 +119,7 @@ async function pollScenario(terminalStatus) {
             return [states[slot], value => { states[slot] = value; }];
         } },
         'next/navigation': { useRouter: () => ({ push: value => navigation.push(value) }) },
+        '@/lib/upload-constants': { MAX_UPLOAD_SIZE_BYTES: 50 * 1024 * 1024 },
     }, {
         FormData: class { append() {} }, alert: value => alerts.push(value),
         sessionStorage: { setItem: (...args) => stored.push(args) },
@@ -198,7 +199,7 @@ test('GET /api/users enforces admin permission instead of plain login', async ()
     assert.equal(res.status, 403);
 });
 
-test('DELETE /api/reviews/[id] removes uploaded docx file and tolerates ENOENT', async () => {
+test('DELETE /api/reviews/[id] removes uploaded docx and pdf files and tolerates ENOENT', async () => {
     const unlinked = [];
     const caliberSanitizer = load('src/lib/caliber-sanitizer.ts');
     const route = load('src/app/api/reviews/[id]/route.ts', {
@@ -229,8 +230,9 @@ test('DELETE /api/reviews/[id] removes uploaded docx file and tolerates ENOENT',
     });
     const res = await route.DELETE({}, { params: Promise.resolve({ id: 'rec_123' }) });
     assert.equal(res.status, 200);
-    assert.equal(unlinked.length, 1);
-    assert.match(unlinked[0], /rec_123\.docx$/);
+    assert.equal(unlinked.length, 2);
+    assert.ok(unlinked.some(p => /rec_123\.docx$/.test(p)));
+    assert.ok(unlinked.some(p => /rec_123\.pdf$/.test(p)));
 });
 
 test('POST /api/auth/change-password applies rate limit and validates missing fields', async () => {

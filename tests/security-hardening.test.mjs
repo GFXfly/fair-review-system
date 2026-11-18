@@ -322,6 +322,7 @@ test('POST /api/analyze rejects unauthenticated request with 401 before reading 
             getTrustedClientIp: () => '127.0.0.1',
         },
         '@/lib/caliber-sanitizer': {},
+        '@/lib/upload-constants': { MAX_UPLOAD_SIZE_BYTES: 50 * 1024 * 1024 },
         'fs/promises': {},
         path,
     });

@@ -32,8 +32,8 @@ export const APP_CONFIG = {
     // 文件处理配置
     // ==========================================
     file: {
-        maxSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB
-        allowedTypes: ['docx', 'txt'],
+        maxSize: parseInt(process.env.MAX_FILE_SIZE || String(50 * 1024 * 1024)), // 50MB
+        allowedTypes: ['docx', 'pdf', 'txt'],
     },
 
     // ==========================================

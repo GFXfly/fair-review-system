@@ -68,11 +68,12 @@ export default function ReviewPage() {
 
     const docContainerRef = useRef<HTMLDivElement>(null);
 
-    // 原始 .docx 高保真还原（docx-preview）。docxAvailable: null=检测中 / true=有原文件用 docx-preview / false=回退 mammoth。
+    // 原始文档高保真还原：originalFormat 区分 loading / docx(docx-preview) / pdf(原生iframe+文本切换) / none(回退文本)。
     const docxRef = useRef<HTMLDivElement>(null);
     const docxBlobRef = useRef<Blob | null>(null);
     const naturalMaxWidthRef = useRef<number>(0);
-    const [docxAvailable, setDocxAvailable] = useState<boolean | null>(null);
+    const [originalFormat, setOriginalFormat] = useState<'loading' | 'docx' | 'pdf' | 'none'>('loading');
+    const [pdfViewMode, setPdfViewMode] = useState<'native' | 'highlight'>('native');
     const [docxReady, setDocxReady] = useState(false);
     const [docxRenderSeq, setDocxRenderSeq] = useState(0);
     const [zoomMode, setZoomMode] = useState<'fit' | 'manual'>('fit');
@@ -102,7 +103,7 @@ export default function ReviewPage() {
             const dataStr = sessionStorage.getItem('temp_review_data');
             if (!dataStr) {
                 setSummary('未找到审查数据，请重新上传文件。');
-                setDocxAvailable(false);
+                setOriginalFormat('none');
                 return;
             }
             try {
@@ -112,7 +113,7 @@ export default function ReviewPage() {
                 if (data.id) {
                     setRealReviewId(data.id);
                 } else {
-                    setDocxAvailable(false);
+                    setOriginalFormat('none');
                 }
 
                 let newDocContent: DocParagraph[] = [];
@@ -160,7 +161,7 @@ export default function ReviewPage() {
             } catch (e) {
                 console.error('Failed to parse temp data', e);
                 setSummary('数据加载失败，请重试。');
-                setDocxAvailable(false);
+                setOriginalFormat('none');
             }
             return;
         }
@@ -235,13 +236,15 @@ export default function ReviewPage() {
 
     useEffect(() => {
         if (!activeRiskId) return;
-        if (docxAvailable === null || (docxAvailable === true && !docxReady)) return;
+        if (originalFormat === 'loading') return;
+        if (originalFormat === 'docx' && !docxReady) return;
+        if (originalFormat === 'pdf' && pdfViewMode !== 'highlight') return;
 
         const risk = risks.find(r => r.id === activeRiskId);
         clearHighlights();
         if (!risk) return;
 
-        if (docxAvailable !== true && risk.paragraphIds && risk.paragraphIds.length > 0) {
+        if (originalFormat !== 'docx' && risk.paragraphIds && risk.paragraphIds.length > 0) {
             const element = document.getElementById(risk.paragraphIds[0]);
             if (element) {
                 element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -285,35 +288,62 @@ export default function ReviewPage() {
             }
         };
         setTimeout(() => scrollToHighlight(), 150);
-    }, [activeRiskId, risks, docxAvailable, docxReady, docxRenderSeq]);
+    }, [activeRiskId, risks, originalFormat, docxReady, docxRenderSeq, pdfViewMode]);
 
-    // 检测并拉取原始 .docx（旧记录/非docx 会 404 → 回退 mammoth 渲染）
+    // 探测原始文档类型（.docx / .pdf / 无原件）：HEAD 先行，避免大 PDF 重复拉流
     useEffect(() => {
         if (id === 'temp' && !realReviewId) return;
         const reviewId = realReviewId || (id && id !== 'temp' ? id : null);
         if (!reviewId) {
-            setDocxAvailable(false);
+            setOriginalFormat('none');
             setDocxReady(false);
             return;
         }
         let cancelled = false;
-        setDocxAvailable(null);
+        docxBlobRef.current = null;
+        setOriginalFormat('loading');
         setDocxReady(false);
-        fetch(`/api/reviews/${reviewId}/file`)
-            .then(res => { if (!res.ok) throw new Error('no original file'); return res.blob(); })
-            .then(blob => { if (!cancelled) { docxBlobRef.current = blob; setDocxAvailable(true); } })
-            .catch(() => {
+        setPdfViewMode('native');
+
+        (async () => {
+            try {
+                let usedGet = false;
+                let res = await fetch(`/api/reviews/${reviewId}/file`, { method: 'HEAD' });
+                if (res.status === 405) {
+                    usedGet = true;
+                    res = await fetch(`/api/reviews/${reviewId}/file`);
+                }
+                if (!res.ok) throw new Error('no original file');
+
+                const contentType = (res.headers.get('content-type') || '').toLowerCase();
+                if (contentType.includes('application/pdf')) {
+                    if (!cancelled) {
+                        setOriginalFormat('pdf');
+                    }
+                    return;
+                }
+
+                const blobRes = usedGet ? res : await fetch(`/api/reviews/${reviewId}/file`);
+                if (!blobRes.ok) throw new Error('no original file');
+                const blob = await blobRes.blob();
+                if (!cancelled) {
+                    docxBlobRef.current = blob;
+                    setOriginalFormat('docx');
+                }
+            } catch {
                 if (!cancelled) {
                     setDocxReady(false);
-                    setDocxAvailable(false);
+                    setOriginalFormat('none');
                 }
-            });
+            }
+        })();
+
         return () => { cancelled = true; };
     }, [realReviewId, id]);
 
-    // 用 docx-preview 渲染原始 docx（动态 import 避免 SSR；失败回退 mammoth）
+    // 用 docx-preview 渲染原始 docx（动态 import 避免 SSR；失败回退文本模式）
     useEffect(() => {
-        if (docxAvailable !== true || !docxRef.current || !docxBlobRef.current) return;
+        if (originalFormat !== 'docx' || !docxRef.current || !docxBlobRef.current) return;
         let cancelled = false;
         setDocxReady(false);
         naturalMaxWidthRef.current = 0;
@@ -366,19 +396,19 @@ export default function ReviewPage() {
                 setDocxReady(true);
                 setDocxRenderSeq(seq => seq + 1);
             } catch (e) {
-                console.error('docx-preview 渲染失败，回退 mammoth:', e);
+                console.error('docx-preview 渲染失败，回退文本模式:', e);
                 if (!cancelled) {
                     setDocxReady(false);
-                    setDocxAvailable(false);
+                    setOriginalFormat('none');
                 }
             }
         })();
         return () => { cancelled = true; };
-    }, [docxAvailable]);
+    }, [originalFormat]);
 
     // 监听文档面板尺寸变化，动态重算“适应页宽”缩放比例
     useEffect(() => {
-        if (docxAvailable !== true || !docxReady) return;
+        if (originalFormat !== 'docx' || !docxReady) return;
         const container = docContainerRef.current;
         if (!container || typeof ResizeObserver === 'undefined') return;
 
@@ -394,7 +424,7 @@ export default function ReviewPage() {
         const observer = new ResizeObserver(recalcFitZoom);
         observer.observe(container);
         return () => observer.disconnect();
-    }, [docxAvailable, docxReady]);
+    }, [originalFormat, docxReady]);
 
     const clampManualZoom = (val: number) => Math.min(1.5, Math.max(0.6, Math.round(val * 10) / 10));
 
@@ -514,8 +544,11 @@ export default function ReviewPage() {
             </header>
 
             <div className={styles.main}>
-                <div className={styles.docPanel} ref={docContainerRef}>
-                    {docxAvailable === true && docxReady && (
+                <div
+                    className={`${styles.docPanel} ${originalFormat === 'pdf' && pdfViewMode === 'native' ? styles.docPanelPdf : ''}`}
+                    ref={docContainerRef}
+                >
+                    {originalFormat === 'docx' && docxReady && (
                         <div className={styles.zoomBarWrap}>
                             <div className={styles.zoomBar} role="toolbar" aria-label="文档页面缩放">
                                 <button
@@ -559,7 +592,42 @@ export default function ReviewPage() {
                         </div>
                     )}
 
-                    {(docxAvailable === null || (docxAvailable === true && !docxReady)) && (
+                    {originalFormat === 'pdf' && (
+                        <div className={styles.pdfToolbarWrap}>
+                            <div className={styles.zoomBar} role="tablist" aria-label="PDF 预览模式切换">
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={pdfViewMode === 'native'}
+                                    className={`${styles.zoomBtn} ${pdfViewMode === 'native' ? styles.zoomBtnActive : ''}`}
+                                    onClick={() => { clearHighlights(); setPdfViewMode('native'); }}
+                                >
+                                    PDF 原版面
+                                </button>
+                                <span className={styles.zoomDivider} aria-hidden="true" />
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={pdfViewMode === 'highlight'}
+                                    className={`${styles.zoomBtn} ${pdfViewMode === 'highlight' ? styles.zoomBtnActive : ''}`}
+                                    onClick={() => setPdfViewMode('highlight')}
+                                >
+                                    违规原句定位
+                                </button>
+                            </div>
+                            {pdfViewMode === 'native' && activeRiskId && (
+                                <button
+                                    type="button"
+                                    className={styles.pdfLocateHintBtn}
+                                    onClick={() => setPdfViewMode('highlight')}
+                                >
+                                    点击定位违规原句 →
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {(originalFormat === 'loading' || (originalFormat === 'docx' && !docxReady)) && (
                         <div className={styles.docSkeletonPaper} aria-busy="true" aria-live="polite">
                             <div className={styles.docSkeletonStatus}>
                                 <span className={styles.docSkeletonSpinner} aria-hidden="true" />
@@ -579,7 +647,7 @@ export default function ReviewPage() {
                         </div>
                     )}
 
-                    {docxAvailable === true && (
+                    {originalFormat === 'docx' && (
                         <div className={`${styles.docxStage} ${docxReady ? '' : styles.docxStageHidden}`}>
                             <div
                                 className={styles.docxZoomLayer}
@@ -594,7 +662,15 @@ export default function ReviewPage() {
                         </div>
                     )}
 
-                    {docxAvailable === false && (
+                    {originalFormat === 'pdf' && pdfViewMode === 'native' && (realReviewId || (id && id !== 'temp')) && (
+                        <iframe
+                            className={styles.pdfFrame}
+                            src={`/api/reviews/${realReviewId || id}/file?inline=1#view=FitH`}
+                            title={fileName}
+                        />
+                    )}
+
+                    {(originalFormat === 'none' || (originalFormat === 'pdf' && pdfViewMode === 'highlight')) && (
                         <div className={styles.docPaper}>
                             {docContent.length === 0 && (
                                 <div className={styles.docEmpty}>

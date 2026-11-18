@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { NoticeModalState } from '@/components/ui/IgnoredNoticeModal';
+import { MAX_UPLOAD_SIZE_BYTES } from '@/lib/upload-constants';
 
 export interface UseReviewSubmitOptions {
     onRefreshRecords?: () => void;
@@ -35,9 +36,40 @@ export function useReviewSubmit(options?: UseReviewSubmitOptions) {
     };
 
     const handleFileSelect = (file: File) => {
+        const lowerName = file.name.toLowerCase();
+
         // Check for .doc extension
-        if (file.name.toLowerCase().endsWith('.doc')) {
+        if (lowerName.endsWith('.doc')) {
             setShowDocWarning(true);
+            return;
+        }
+
+        // Format whitelist check
+        if (
+            !lowerName.endsWith('.docx') &&
+            !lowerName.endsWith('.wps') &&
+            !lowerName.endsWith('.pdf') &&
+            !lowerName.endsWith('.txt')
+        ) {
+            setNoticeModal({
+                open: true,
+                mode: 'error',
+                fileName: file.name,
+                message: '不支持该文件格式，目前支持 .docx（Word）与电子文字版 .pdf 文件。',
+                suggestion: '请将文书在 Word/WPS 中另存为 .docx 或直接导出为电子文字版 .pdf 后重新上传。',
+            });
+            return;
+        }
+
+        // 50MB client-side limit check
+        if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+            setNoticeModal({
+                open: true,
+                mode: 'error',
+                fileName: file.name,
+                message: '单个文件大小不能超过 50MB',
+                suggestion: '请压缩文档内嵌大图或拆分附件后重新上传。',
+            });
             return;
         }
 
@@ -85,7 +117,11 @@ export function useReviewSubmit(options?: UseReviewSubmitOptions) {
             if (!response.ok) {
                 if (contentType.includes('application/json')) {
                     const errorData = await response.json();
-                    throw new Error(errorData.details || errorData.error || 'Analysis failed');
+                    const err = new Error(
+                        errorData.message || errorData.details || errorData.error || 'Analysis failed'
+                    ) as Error & { suggestion?: string | null };
+                    err.suggestion = errorData.suggestion || null;
+                    throw err;
                 } else {
                     const errorText = await response.text();
                     console.error('API returned non-JSON response:', errorText.substring(0, 200));

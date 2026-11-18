@@ -12,6 +12,7 @@ import { createErrorResponse } from '@/lib/error-handler';
 import { AuthError, getCurrentUser, handleAuthError, requireAuth } from '@/lib/auth';
 import { applyRateLimit, llmAnalysisRateLimiter, getTrustedClientIp } from '@/lib/rate-limit';
 import { encodeRelatedCaseWithCaliber, extractInternalCaliberFromText, sanitizePublicText } from '@/lib/caliber-sanitizer';
+import { MAX_UPLOAD_SIZE_BYTES } from '@/lib/upload-constants';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
@@ -292,15 +293,15 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. 在读取 formData 前快速校验 Content-Length 上限，防止超大请求体打满内存
-        const MAX_FILE_SIZE = 10 * 1024 * 1024;
+        const MAX_FILE_SIZE = MAX_UPLOAD_SIZE_BYTES;
         const contentLengthHeader = req.headers.get('content-length');
         if (contentLengthHeader) {
             const contentLength = Number(contentLengthHeader);
-            if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE + 256 * 1024) {
+            if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE + 2 * 1024 * 1024) {
                 await logFailure('upload_file', '请求体过大', userId, undefined, { contentLength }, req);
                 return NextResponse.json({
                     error: '文件过大',
-                    message: '文件大小不能超过 10MB',
+                    message: '文件大小不能超过 50MB',
                 }, { status: 413 });
             }
         }
@@ -315,12 +316,12 @@ export async function POST(req: NextRequest) {
 
         fileName = file.name;
 
-        // File size limit: 10MB
+        // File size limit: 50MB
         if (file.size > MAX_FILE_SIZE) {
             await logFailure('upload_file', '文件过大', userId, fileName, { fileSize: file.size }, req);
             return NextResponse.json({
                 error: '文件过大',
-                message: `文件大小不能超过 10MB`,
+                message: '文件大小不能超过 50MB',
                 suggestion: `当前文件大小为 ${(file.size / 1024 / 1024).toFixed(2)}MB`
             }, { status: 400 });
         }
@@ -362,15 +363,20 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Analyze] Created processing record: ${record.id} for ${fileName}`);
 
-        // 存原始 docx 供前端 docx-preview 高保真还原（仅 docx/wps；失败不阻断审查）。
+        // 存原始 docx / pdf 供前端高保真还原预览（失败不阻断审查）。
         // data 目录是持久化挂载卷，与数据库同位置。
         const lowerName = fileName.toLowerCase();
-        if (lowerName.endsWith('.docx') || lowerName.endsWith('.wps')) {
+        const originalExt = (lowerName.endsWith('.docx') || lowerName.endsWith('.wps'))
+            ? 'docx'
+            : lowerName.endsWith('.pdf')
+                ? 'pdf'
+                : null;
+        if (originalExt) {
             try {
                 const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
                 await mkdir(uploadsDir, { recursive: true });
                 await writeFile(
-                    path.join(uploadsDir, `${record.id}.docx`),
+                    path.join(uploadsDir, `${record.id}.${originalExt}`),
                     fileBuffer
                 );
             } catch (e) {

@@ -58,9 +58,9 @@ export default function UploadModals({
                         <div className={kit.modalHeader}>
                             <span className={`${kit.modalIcon} ${kit.modalIconWarn}`}><RefreshIcon size={20} /></span>
                             <div>
-                                <h3 id="doc-title" className={kit.modalTitle}>请转换为 .docx 格式</h3>
+                                <h3 id="doc-title" className={kit.modalTitle}>请转换为 .docx 或文字版 .pdf 格式</h3>
                                 <p className={kit.modalDesc}>
-                                    为确保审查精准度，系统目前仅支持标准 Word（.docx）文件。
+                                    为确保审查精准度，系统支持标准 Word（.docx）与电子文字版 PDF（.pdf）文件，暂不直接支持旧版 .doc 格式。
                                 </p>
                             </div>
                         </div>
@@ -68,8 +68,8 @@ export default function UploadModals({
                             <div className={`${kit.alert} ${kit.alertInfo}`}>
                                 <InfoIcon size={16} />
                                 <span>
-                                    在 Word 中打开文件，选择 <strong>「文件」→「另存为」</strong>，
-                                    并将保存类型选为 <strong>Word 文档（.docx）</strong>。
+                                    在 Word / WPS 中打开文件，选择 <strong>「文件」→「另存为」</strong>，
+                                    并将保存类型选为 <strong>Word 文档（.docx）</strong>，或直接导出为<strong>电子文字版 PDF（.pdf）</strong>。
                                 </span>
                             </div>
                         </div>

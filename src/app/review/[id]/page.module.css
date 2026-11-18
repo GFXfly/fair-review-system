@@ -132,6 +132,58 @@
     min-height: 0;
 }
 
+.docPanelPdf {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px 20px;
+    overflow: hidden;
+}
+
+.pdfToolbarWrap {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.pdfLocateHintBtn {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 75, 49, 0.28);
+    background: rgba(251, 237, 232, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--brand-strong);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.pdfLocateHintBtn:hover {
+    background: rgba(200, 75, 49, 0.16);
+    border-color: rgba(200, 75, 49, 0.45);
+}
+
+.pdfFrame {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    border: 1px solid rgba(24, 28, 27, 0.1);
+    border-radius: 6px;
+    background: #FFFFFF;
+    box-shadow: var(--shadow-sm);
+}
+
 /* ---------- 顶部毛玻璃缩放工具胶囊 ---------- */
 .zoomBarWrap {
     position: sticky;

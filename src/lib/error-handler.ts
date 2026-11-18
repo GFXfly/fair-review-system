@@ -93,12 +93,52 @@ export function formatError(error: any, context?: string): UserFriendlyError {
     }
 
     // 文件处理错误
-    if (errorMessage.includes('file') || errorMessage.includes('文件') || context?.includes('file')) {
+    if (
+        errorMessage.includes('file') ||
+        errorMessage.includes('文件') ||
+        errorMessage.includes('PDF') ||
+        errorMessage.includes('图片扫描件') ||
+        errorMessage.includes('压缩炸弹') ||
+        context?.includes('file') ||
+        context?.includes('文件')
+    ) {
+        if (errorMessage.includes('图片扫描件')) {
+            return {
+                title: '暂不支持图片扫描件 PDF',
+                message: errorMessage,
+                suggestion: '请使用 Word / WPS 打开原稿直接导出或另存为电子文字版 PDF（确保文字可选中），或直接上传 .docx 源文件。',
+                technicalDetails: errorMessage
+            };
+        }
+        if (errorMessage.includes('密码加密')) {
+            return {
+                title: 'PDF 文档受密码保护',
+                message: errorMessage,
+                suggestion: '请先解除文档密码保护，或上传未加密的 .docx / 电子文字版 .pdf 源文件。',
+                technicalDetails: errorMessage
+            };
+        }
+        if (errorMessage.includes('文件头格式校验失败')) {
+            return {
+                title: '文件格式校验失败',
+                message: errorMessage,
+                suggestion: '请确认文件扩展名与实际格式一致，勿直接修改文件后缀，建议使用 Word / WPS 重新导出。',
+                technicalDetails: errorMessage
+            };
+        }
+        if (errorMessage.includes('体积异常') || errorMessage.includes('压缩炸弹')) {
+            return {
+                title: '文件安全校验未通过',
+                message: errorMessage,
+                suggestion: '请检查文档内是否包含异常超大对象或损坏的压缩结构，可尝试另存为新文档后重新上传。',
+                technicalDetails: errorMessage
+            };
+        }
         if (errorMessage.includes('not supported') || errorMessage.includes('不支持')) {
             return {
                 title: '文件格式不支持',
                 message: '该文件格式无法识别。',
-                suggestion: '目前仅支持 .docx (Word) 和 .txt (纯文本) 格式。请转换文件格式后重新上传。',
+                suggestion: '目前支持 .docx（Word）、电子文字版 .pdf 及 .txt（纯文本）格式。请转换文件格式后重新上传。',
                 technicalDetails: errorMessage
             };
         }
@@ -106,7 +146,7 @@ export function formatError(error: any, context?: string): UserFriendlyError {
             return {
                 title: '文件解析失败',
                 message: '无法读取文件内容，文件可能已损坏或格式不正确。',
-                suggestion: '请尝试：\n1. 用 Word/WPS 重新打开并另存为 .docx 格式\n2. 检查文件是否加密或受保护\n3. 尝试上传纯文本版本',
+                suggestion: '请尝试：\n1. 用 Word/WPS 重新打开并另存为 .docx 或导出电子文字版 .pdf\n2. 检查文件是否加密或受保护\n3. 尝试上传纯文本版本',
                 technicalDetails: errorMessage
             };
         }
@@ -114,7 +154,7 @@ export function formatError(error: any, context?: string): UserFriendlyError {
             return {
                 title: '文件过大',
                 message: '上传的文件超过大小限制。',
-                suggestion: '请确保文件小于 10MB，或精简文件内容后重新上传。',
+                suggestion: '请确保文件小于 50MB，或压缩内嵌图片、精简文件内容后重新上传。',
                 technicalDetails: errorMessage
             };
         }

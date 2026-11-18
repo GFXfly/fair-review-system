@@ -288,6 +288,7 @@ test('useReviewSubmit handles ignored status with noticeModal instead of alert o
             },
         },
         'next/navigation': { useRouter: () => ({ push: () => {} }) },
+        '@/lib/upload-constants': { MAX_UPLOAD_SIZE_BYTES: 50 * 1024 * 1024 },
     }, {
         FormData: class { append() {} },
         alert: msg => alerts.push(msg),

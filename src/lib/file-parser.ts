@@ -5,9 +5,10 @@ import { JSDOM } from 'jsdom';
 const window = new JSDOM('').window;
 const DOMPurify = createDOMPurify(window);
 
-const MAX_ZIP_ENTRIES = 2000;
-const MAX_SINGLE_ENTRY_BYTES = 40 * 1024 * 1024;
-const MAX_TOTAL_UNCOMPRESSED_BYTES = 80 * 1024 * 1024;
+const MAX_ZIP_ENTRIES = 5000;
+const MAX_SINGLE_ENTRY_BYTES = 100 * 1024 * 1024;
+const MAX_SINGLE_XML_BYTES = 45 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_BYTES = 220 * 1024 * 1024;
 
 /**
  * 校验 .docx/.wps 压缩包结构与解压安全性，防止伪造文件头、路径穿越及 Zip Bomb
@@ -117,9 +118,13 @@ export function validateDocxArchiveSafety(buffer: Buffer): void {
             hasDocumentXml = true;
         }
 
+        const lowerEntryName = entryName.toLowerCase();
+        const isXmlEntry = lowerEntryName.endsWith('.xml') || lowerEntryName.endsWith('.rels');
+
         totalUncompressedBytes += uncompressedSize;
         if (
             uncompressedSize > MAX_SINGLE_ENTRY_BYTES ||
+            (isXmlEntry && uncompressedSize > MAX_SINGLE_XML_BYTES) ||
             totalUncompressedBytes > MAX_TOTAL_UNCOMPRESSED_BYTES
         ) {
             throw new Error('文档解压后体积异常（疑似压缩炸弹或超大内嵌对象），已拒绝解析');
@@ -131,6 +136,138 @@ export function validateDocxArchiveSafety(buffer: Buffer): void {
     if (pos !== cdEnd || !hasDocumentXml) {
         throw new Error('无效或异常的压缩结构，无法安全解析');
     }
+}
+
+/**
+ * 校验 PDF 文件头魔数，防止伪造后缀名的非 PDF 文件进入解析器
+ */
+export function validatePdfBufferSafety(buffer: Buffer): void {
+    if (!Buffer.isBuffer(buffer) || buffer.length < 8) {
+        throw new Error('文件头格式校验失败：不是有效的 PDF 文档');
+    }
+
+    const header = buffer.subarray(0, Math.min(buffer.length, 1024)).toString('latin1');
+    if (!/%PDF-[12]\./.test(header)) {
+        throw new Error('文件头格式校验失败：不是有效的 PDF 文档');
+    }
+}
+
+const SCANNED_PDF_ERROR_MESSAGE =
+    '检测到该 PDF 为图片扫描件（无有效文字层，平均每页可提取文字不足 25 字），无法确保条款无遗漏审查。请上传由编标软件或 Word 直接导出的电子文字版 PDF，或上传 .docx 源文件。';
+
+function isPdfPageMarkerLine(line: string): boolean {
+    if (!line) return true;
+    if (/^[-—–•·\s]*\d{1,5}(?:\s*\/\s*\d{1,5})?[-—–•·\s]*$/.test(line)) return true;
+    if (/^第\s*\d{1,5}\s*页(?:\s*[共/]\s*\d{1,5}\s*页)?$/.test(line)) return true;
+    if (/^page\s+\d+(?:\s*(?:of|\/)\s*\d+)?$/i.test(line)) return true;
+    return false;
+}
+
+function countEffectivePdfChars(rawText: string): number {
+    const joined = rawText
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => !isPdfPageMarkerLine(line))
+        .join('');
+    const matches = joined.match(/[\u4e00-\u9fa5a-zA-Z0-9]/g);
+    return matches ? matches.length : 0;
+}
+
+function detectPdfHeadingLevel(line: string): 'h2' | 'h3' | 'h4' | null {
+    if (!line || /[。！？；]$/.test(line)) {
+        return null;
+    }
+    if (
+        line.length < 60 &&
+        /^(?:第[一二三四五六七八九十百零\d]+[章节部分篇]|附件[\d一二三四五六七八九十]*[：:\s]?|[一二三四五六七八九十]+、)/.test(line)
+    ) {
+        return 'h2';
+    }
+    if (
+        line.length < 80 &&
+        /^(?:[（(][一二三四五六七八九十\d]+[）)]|表\s*\d+(?:[.\-]\d+)*\b)/.test(line)
+    ) {
+        return 'h3';
+    }
+    if (
+        line.length < 100 &&
+        /^\d+(?:\.\d+)+(?=[、.\s\u4e00-\u9fa5a-zA-Z])|^\d+[、.](?=\s*[^\d%万千亿元])/.test(line)
+    ) {
+        return 'h4';
+    }
+    return null;
+}
+
+function joinPdfWrappedLines(prev: string, next: string): string {
+    if (!prev) return next;
+    const prevLast = prev.slice(-1);
+    const nextFirst = next.slice(0, 1);
+    const isCjkOrFullWidth = (ch: string) => /[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(ch);
+    if (isCjkOrFullWidth(prevLast) || isCjkOrFullWidth(nextFirst)) {
+        return prev + next;
+    }
+    return `${prev} ${next}`;
+}
+
+function formatPdfParagraphs(rawText: string): ParsedDocument {
+    const lines = rawText
+        .split(/\r?\n/)
+        .map(line => line.replace(/\u00a0/g, ' ').trim())
+        .filter(line => !isPdfPageMarkerLine(line));
+
+    interface PdfBlock {
+        tag: 'h2' | 'h3' | 'h4' | 'p';
+        text: string;
+        lastLineLen: number;
+    }
+
+    const blocks: PdfBlock[] = [];
+
+    for (const line of lines) {
+        const headingTag = detectPdfHeadingLevel(line);
+        const prevBlock = blocks[blocks.length - 1];
+
+        const shouldStartNewBlock =
+            !prevBlock ||
+            headingTag !== null ||
+            prevBlock.tag !== 'p' ||
+            /[。！？；：”」』】）]$/.test(prevBlock.text) ||
+            prevBlock.lastLineLen < 22;
+
+        if (shouldStartNewBlock) {
+            blocks.push({
+                tag: headingTag ?? 'p',
+                text: line,
+                lastLineLen: line.length,
+            });
+        } else {
+            prevBlock.text = joinPdfWrappedLines(prevBlock.text, line);
+            prevBlock.lastLineLen = line.length;
+        }
+    }
+
+    const text = blocks
+        .map(b => (b.tag === 'p' ? `\u3000\u3000${b.text}` : b.text))
+        .join('\n\n')
+        .trim();
+
+    const rawHtml = blocks
+        .map(b => `<${b.tag}>${escapeHtml(b.text)}</${b.tag}>`)
+        .join('\n');
+
+    return {
+        text,
+        html: sanitizeHtml(rawHtml),
+    };
+}
+
+async function loadPdfParse(): Promise<(buf: Buffer) => Promise<{ numpages?: number; text?: string }>> {
+    const mod = await import('pdf-parse-fork');
+    const fn = (mod as unknown as { default?: unknown }).default ?? mod;
+    if (typeof fn !== 'function') {
+        throw new Error('PDF 解析组件加载失败');
+    }
+    return fn as (buf: Buffer) => Promise<{ numpages?: number; text?: string }>;
 }
 
 /**
@@ -302,7 +439,34 @@ export async function extractTextFromFile(file: File, preloadedBuffer?: Buffer):
                 throw new Error(`无法解析 Word 文档 (${fileName})。可能原因：\n1. 文件虽然后缀是 .docx，但实际是旧版 .doc 格式；\n2. 文档被加密保护。\n\n建议您用 Word/WPS 打开文档，选择"另存为" .docx 格式后再上传。`);
             }
         } // This closing brace was missing for the 'if' block
-        // 2. Support Plain Text
+        // 2. Support Electronic Text PDF (via pdf-parse-fork)
+        else if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+            validatePdfBufferSafety(buffer);
+
+            let pdfData: { numpages?: number; text?: string };
+            try {
+                const pdfParse = await loadPdfParse();
+                pdfData = await pdfParse(buffer);
+            } catch (pdfError: any) {
+                const errMsg = String(pdfError?.message || pdfError || '');
+                if (/password|encrypted/i.test(errMsg)) {
+                    throw new Error('该 PDF 文档受密码加密保护，请先解除密码或上传未加密版本。');
+                }
+                console.error('PDF extraction failed for:', fileName, pdfError);
+                throw new Error(`无法解析 PDF 文档 (${fileName})。请确认文件未损坏且为标准 PDF 格式。`);
+            }
+
+            const rawText = pdfData?.text || '';
+            const numPages = Math.max(1, Number(pdfData?.numpages) || 1);
+            const effectiveCharCount = countEffectivePdfChars(rawText);
+
+            if (effectiveCharCount < 40 || (numPages >= 3 && effectiveCharCount / numPages < 25)) {
+                throw new Error(SCANNED_PDF_ERROR_MESSAGE);
+            }
+
+            return formatPdfParagraphs(rawText);
+        }
+        // 3. Support Plain Text
         else if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
             const textDecoder = new TextDecoder('utf-8');
             const text = textDecoder.decode(buffer);
@@ -312,9 +476,9 @@ export async function extractTextFromFile(file: File, preloadedBuffer?: Buffer):
                 html: `<div class="doc-content">${escapedText.replace(/\n/g, '<br>')}</div>`
             };
         }
-        // 3. Fallback for others
+        // 4. Fallback for others
         else {
-            throw new Error(`不支持的文件格式: ${fileName}。目前系统仅支持 .docx (Word) 和 .txt 格式。`);
+            throw new Error(`不支持的文件格式: ${fileName}。目前系统支持 .docx（Word）、电子文字版 .pdf 及 .txt 格式。`);
         }
     } catch (error: any) {
         console.error('Error parsing file:', error);

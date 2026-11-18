@@ -192,8 +192,8 @@ async function processAnalysisAsync(
                     await updateProgress(recordId, progressPercent,
                         `辩论验证中 (${index + 1}/${totalRisks})：${risk.description.substring(0, 20)}...`);
 
-                    const defenseArgs = await runDefender(risk, text);
-                    const finalVerdict = await runJudge(risk, defenseArgs);
+                    const defenseArgs = await runDefender(risk, text, gatekeeperResult.category);
+                    const finalVerdict = await runJudge(risk, defenseArgs, guidance, gatekeeperResult.category);
 
                     if (finalVerdict) {
                         console.log(`[Debate] Judge Verdict: MAINTAIN/DOWNGRADE`);

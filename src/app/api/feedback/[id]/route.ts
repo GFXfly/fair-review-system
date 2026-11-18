@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin, handleAuthError } from '@/lib/auth';
+import { invalidateFeedbackLearningCache } from '@/lib/feedback-learning';
 
 // PATCH /api/feedback/[id] - 管理员审核反馈
 export async function PATCH(
@@ -41,6 +42,8 @@ export async function PATCH(
                 }
             }
         });
+
+        invalidateFeedbackLearningCache();
 
         return NextResponse.json({
             success: true,

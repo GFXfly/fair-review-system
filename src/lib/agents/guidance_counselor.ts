@@ -1,6 +1,7 @@
 
 import { callLLM, firstArray, FLASH_MODEL } from '@/lib/llm';
 import { prisma } from '@/lib/prisma';
+import { prepareDocumentForAudit } from '@/lib/bidding-precision';
 
 export async function runGuidanceCounselor(text: string, category: string = ''): Promise<string> {
     console.log('[GuidanceCounselor] Starting retrieval of expert Q&A criteria...');
@@ -62,9 +63,8 @@ export async function runGuidanceCounselor(text: string, category: string = ''):
             return guidanceText;
         }
 
-        // 2. Ask LLM to pick the top 5 relevant questions based on the input text
-        // We send a summary of the text (first 3000 chars) to save tokens
-        const summaryText = text.substring(0, 3000);
+        // 2. Ask LLM to pick the top 5 relevant questions based on the high-density summary
+        const summaryText = prepareDocumentForAudit(text, category).summaryForGuidance;
 
         const selectionPrompt = `
         你是一个专业的审查助手。以下是一份正在被审查的政府文件内容摘要：

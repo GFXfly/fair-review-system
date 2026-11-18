@@ -27,6 +27,8 @@ function auditor(responses) {
     let calls = 0;
     const { APP_CONFIG } = load('src/lib/config.ts');
     const { TextChunker } = load('src/lib/text-utils.ts');
+    const biddingPrecision = load('src/lib/bidding-precision.ts');
+    const feedbackLearning = load('src/lib/feedback-learning.ts', { '@/lib/prisma': { prisma: {} } });
     return load('src/lib/agents/auditor.ts', {
         '@/lib/llm': {
             callLLM: async () => responses[Math.min(calls++, responses.length - 1)],
@@ -35,6 +37,8 @@ function auditor(responses) {
         },
         '@/lib/rag': { searchSimilarCases: async () => [], searchSimilarRegulations: async () => [] },
         '@/lib/text-utils': { TextChunker }, '@/lib/config': { APP_CONFIG },
+        '@/lib/bidding-precision': biddingPrecision,
+        '@/lib/feedback-learning': feedbackLearning,
         './retrieval': {},
     });
 }
@@ -152,12 +156,14 @@ test('successful later poll stores the result and navigates to the review', asyn
 });
 
 test('guidance counselor preserves core regulation text when no QA matches', async () => {
+    const biddingPrecision = load('src/lib/bidding-precision.ts');
     const { runGuidanceCounselor } = load('src/lib/agents/guidance_counselor.ts', {
         '@/lib/llm': {
             callLLM: async () => '{"ids":[]}',
             firstArray: value => Array.isArray(value) ? value : Object.values(value || {}).find(Array.isArray) || null,
             FLASH_MODEL: 'flash',
         },
+        '@/lib/bidding-precision': biddingPrecision,
         '@/lib/prisma': {
             prisma: {
                 regulation: {
@@ -457,6 +463,8 @@ test('TextChunker.AUDITOR_CHUNK is 50000 and extractRiskKeywords scans tail of 4
 
     const retrievedKeywords = [];
     const scannedWindows = [];
+    const biddingPrecision = load('src/lib/bidding-precision.ts');
+    const feedbackLearning = load('src/lib/feedback-learning.ts', { '@/lib/prisma': { prisma: {} } });
     const { runAuditor } = load('src/lib/agents/auditor.ts', {
         '@/lib/llm': {
             callLLM: async (_sys, userPrompt) => {
@@ -473,6 +481,8 @@ test('TextChunker.AUDITOR_CHUNK is 50000 and extractRiskKeywords scans tail of 4
         '@/lib/rag': { searchSimilarCases: async () => [], searchSimilarRegulations: async () => [] },
         '@/lib/text-utils': { TextChunker },
         '@/lib/config': { APP_CONFIG },
+        '@/lib/bidding-precision': biddingPrecision,
+        '@/lib/feedback-learning': feedbackLearning,
         './retrieval': {
             RetrievalAgent: class {
                 async batchRetrievalForRisks(keywords) {

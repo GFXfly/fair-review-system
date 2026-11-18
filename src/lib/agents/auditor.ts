@@ -3,6 +3,13 @@ import { searchSimilarCases, searchSimilarRegulations } from '@/lib/rag';
 import { TextChunker } from '@/lib/text-utils';
 import { APP_CONFIG } from '@/lib/config';
 import { RetrievalAgent } from './retrieval';
+import {
+    prepareDocumentForAudit,
+    formatDeterministicSignalsForPrompt,
+    BIDDING_COMPLIANCE_SAFE_HARBOR_PROMPT,
+    DeterministicSignal,
+} from '@/lib/bidding-precision';
+import { getApprovedFalsePositivePrompt } from '@/lib/feedback-learning';
 
 export interface AuditIssue {
     id: string;
@@ -22,11 +29,37 @@ export interface AuditIssue {
 
 const KEYWORD_WINDOW_SIZE = 8000;
 const KEYWORD_WINDOW_OVERLAP = 1000;
-const KEYWORD_MAX_WINDOWS = 8;
+const KEYWORD_MAX_WINDOWS = 16;
 const KEYWORD_WINDOW_CONCURRENCY = Math.max(
     1,
     parseInt(process.env.KEYWORD_WINDOW_CONCURRENCY || '2'),
 );
+const AUDITOR_CHUNK_CONCURRENCY = 2;
+const MAX_MERGED_RAG_KEYWORDS = 14;
+
+function normalizeTextForDedup(s: string): string {
+    return (s || '')
+        .replace(/[\s\u3000,.，。、;；:：!！?？"""''（）()【】《》\[\]\-_]/g, '')
+        .toLowerCase();
+}
+
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (true) {
+            const i = cursor++;
+            if (i >= items.length) return;
+            results[i] = await fn(items[i], i);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
 
 function buildSlidingWindows(text: string): string[] {
     if (text.length <= KEYWORD_WINDOW_SIZE) return [text];
@@ -119,15 +152,12 @@ async function extractRiskKeywords(text: string): Promise<string[]> {
     await Promise.all(workers);
 
     // Dedup keywords by normalized text (drop punctuation + whitespace).
-    const normalize = (s: string) =>
-        s.replace(/[\s\u3000,.，。、;；:：!！?？"""''（）()【】\-_]/g, '').toLowerCase();
-
     const seen = new Set<string>();
     const merged: string[] = [];
     for (const batch of perWindow) {
         if (!batch) continue;
         for (const k of batch) {
-            const key = normalize(k);
+            const key = normalizeTextForDedup(k);
             if (key.length < 4) continue;
             if (seen.has(key)) continue;
             seen.add(key);
@@ -141,8 +171,84 @@ async function extractRiskKeywords(text: string): Promise<string[]> {
     return final;
 }
 
+function mergeSignalKeywords(extractedKeywords: string[], signals: DeterministicSignal[]): string[] {
+    const merged: string[] = [];
+    const normKeys: string[] = [];
+
+    const addIfUnique = (candidate: string) => {
+        if (merged.length >= MAX_MERGED_RAG_KEYWORDS) return;
+        const trimmed = candidate.trim();
+        const key = normalizeTextForDedup(trimmed);
+        if (key.length < 4) return;
+
+        for (const existing of normKeys) {
+            if (existing === key || existing.includes(key) || key.includes(existing)) {
+                return;
+            }
+        }
+        normKeys.push(key);
+        merged.push(trimmed);
+    };
+
+    for (const kw of extractedKeywords) {
+        addIfUnique(kw);
+    }
+    for (const sig of signals) {
+        addIfUnique(sig.snippet);
+    }
+    return merged;
+}
+
+function dedupChunkOverlapIssues(issues: AuditIssue[]): AuditIssue[] {
+    if (issues.length <= 1) return issues;
+    const levelScore: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+    const result: AuditIssue[] = [];
+    const normLocs: string[] = [];
+
+    for (const issue of issues) {
+        const normLoc = normalizeTextForDedup(issue.location || '');
+        if (!normLoc) {
+            result.push(issue);
+            normLocs.push('');
+            continue;
+        }
+        let dupIdx = -1;
+        for (let i = 0; i < normLocs.length; i++) {
+            const existing = normLocs[i];
+            if (!existing) continue;
+            const ratio = Math.min(existing.length, normLoc.length) / Math.max(existing.length, normLoc.length);
+            if (existing === normLoc || (ratio >= 0.7 && (existing.includes(normLoc) || normLoc.includes(existing)))) {
+                dupIdx = i;
+                break;
+            }
+        }
+        if (dupIdx < 0) {
+            result.push(issue);
+            normLocs.push(normLoc);
+        } else if ((levelScore[issue.risk_level] || 0) > (levelScore[result[dupIdx].risk_level] || 0)) {
+            result[dupIdx] = issue;
+            normLocs[dupIdx] = normLoc;
+        }
+    }
+    return result;
+}
+
 export async function runAuditor(category: string, text: string, guidance: string = ""): Promise<AuditIssue[]> {
     console.log('Running Auditor on category:', category);
+
+    // ==========================================
+    // 🔥 招投标精准审查预处理：智能脱水 + 确定性雷达 + 历史误报反哺
+    // ==========================================
+    const prepared = prepareDocumentForAudit(text, category);
+    const learnedFalsePositives = await getApprovedFalsePositivePrompt();
+    const signalsPrompt = formatDeterministicSignalsForPrompt(prepared.signals);
+
+    if (prepared.removedBoilerplateChars > 0) {
+        console.log(`[Auditor] 智能脱水：已略去通用合同条款套话约 ${prepared.removedBoilerplateChars} 字，切分审查块数=${prepared.auditChunks.length}`);
+    }
+    if (prepared.signals.length > 0) {
+        console.log(`[Auditor] 前置规则雷达命中 ${prepared.signals.length} 条高疑特征信号`);
+    }
 
     // ==========================================
     // 🔥 Agentic RAG：智能检索代理
@@ -157,9 +263,10 @@ export async function runAuditor(category: string, text: string, guidance: strin
 
     console.log(`[RAG] 检索模式：${useAgenticRAG ? 'Agentic RAG（智能）' : 'Traditional RAG（传统）'}`);
 
-    // 🔥 第一步：提取风险关键片段
+    // 🔥 第一步：提取风险关键片段（基于脱水文本，并融合前置规则雷达信号）
     console.log(`[RAG] 🔍 第一步：提取风险关键片段...`);
-    const riskKeywords = await extractRiskKeywords(text);
+    const extractedKeywords = await extractRiskKeywords(prepared.dehydratedText);
+    const riskKeywords = mergeSignalKeywords(extractedKeywords, prepared.signals);
 
     let uniqueCases: any[] = [];
     let uniqueRegs: any[] = [];
@@ -191,7 +298,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
         uniqueCases = allCases.slice(0, rag.finalCasesCount);
 
         // 🔥 检索法规（法规用全文摘要，不需要太精准）
-        const summaryForRegs = TextChunker.truncate(text, rag.ragInputLength);
+        const summaryForRegs = TextChunker.truncate(prepared.dehydratedText, rag.ragInputLength);
         const regQueries = await retrievalAgent.rewriteQuery(summaryForRegs);
         const allRegs = await retrievalAgent.fusionSearch(regQueries, 'regulation');
         uniqueRegs = allRegs.slice(0, rag.finalRegulationsCount);
@@ -221,7 +328,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
         // 如果风险片段检索结果不足，用全文摘要兜底
         if (allCasesMap.size < 3) {
             console.log(`[RAG] ⚠️ 风险片段检索结果不足，使用全文摘要兜底...`);
-            const summaryForRAG = TextChunker.truncate(text, rag.ragInputLength);
+            const summaryForRAG = TextChunker.truncate(prepared.dehydratedText, rag.ragInputLength);
             const fallbackCases = await searchSimilarCases(summaryForRAG, rag.maxCasesPerQuery, 0.50);
             fallbackCases.forEach(c => {
                 if (!allCasesMap.has(c.id)) {
@@ -234,7 +341,7 @@ export async function runAuditor(category: string, text: string, guidance: strin
         allCases = Array.from(allCasesMap.values()).sort((a, b) => b.similarity - a.similarity);
 
         // 检索法规
-        const summaryForRegs = TextChunker.truncate(text, rag.ragInputLength);
+        const summaryForRegs = TextChunker.truncate(prepared.dehydratedText, rag.ragInputLength);
         const allRegs = await searchSimilarRegulations(summaryForRegs, rag.maxRegulationsPerQuery, rag.regulationSimilarityThreshold);
 
         uniqueCases = allCases.slice(0, rag.finalCasesCount);
@@ -398,6 +505,10 @@ export async function runAuditor(category: string, text: string, guidance: strin
     参考知识库信息：
     ${guidance}
 
+    ${BIDDING_COMPLIANCE_SAFE_HARBOR_PROMPT}
+
+    ${learnedFalsePositives ? `${learnedFalsePositives}\n` : ''}
+    ${signalsPrompt ? `${signalsPrompt}\n` : ''}
     ${ragContext}
 
     // ==========================================
@@ -565,14 +676,6 @@ export async function runAuditor(category: string, text: string, guidance: strin
     ⚠️ 即使只发现 1 个风险点，也必须放进 risks 数组；若未发现任何风险，返回 {"risks": []}。不要把单个风险对象直接作为顶层返回。
     `;
 
-    // Use TextChunker for consistent truncation
-    const truncatedText = TextChunker.getChunkForAgent(text, 'auditor');
-
-    const userPrompt = `
-    文件内容：
-    ${truncatedText}
-    `;
-
     // 把"解析返回"独立出来。返回 null 表示"调用/解析异常"（应重试）；
     // 返回数组（含空数组）表示有效结果——空数组是模型判定"无风险"，不重试。
     // V4 在 json_object 模式下输出结构不稳定，兼容三种形态：
@@ -607,28 +710,46 @@ export async function runAuditor(category: string, text: string, guidance: strin
     };
 
     // 核心审查：质量命门，用 V4 Pro + 思考模式（effort high）。
-    // V4 thinking 偶发返回空 content / 无效结构（表现为整篇 0 风险且不报错、极难发现），
-    // 这里对"调用/解析异常"自动重试，避免偶发抽风导致漏审。
+    // 对长标书切分出的 auditChunks 并发深审（最大并发 2），任一分块 3 次重试均失败立即抛错。
     const MAX_AUDITOR_ATTEMPTS = 3; // 1 次正常 + 最多 2 次重试
-    let issues: AuditIssue[] | null = null;
-    for (let attempt = 1; attempt <= MAX_AUDITOR_ATTEMPTS; attempt++) {
-        const resultStr = await callLLM(systemPrompt, userPrompt, {
-            jsonMode: true,
-            model: PRO_MODEL,
-            thinking: true,
-            effort: 'high',
-        });
-        issues = parseAuditorResponse(resultStr);
-        if (issues !== null) break; // 拿到有效结果（含真·空数组），停止
-        console.warn(`[Auditor] 第 ${attempt}/${MAX_AUDITOR_ATTEMPTS} 次返回空或无效结构，` +
-            (attempt < MAX_AUDITOR_ATTEMPTS ? '重试...' : '放弃。'));
-        if (resultStr) console.warn('[Auditor] 无效返回片段:', resultStr.slice(0, 200));
-    }
+    const chunks = prepared.auditChunks;
 
-    if (issues === null) {
-        throw new Error('核心审查多次重试仍未获得有效结果，请重试或转人工复核');
-    }
+    const auditChunk = async (chunk: string, chunkIdx: number): Promise<AuditIssue[]> => {
+        const userPrompt = chunks.length === 1
+            ? `\n    文件内容：\n    ${chunk}\n    `
+            : `\n    文件内容（第 ${chunkIdx + 1}/${chunks.length} 区块，请仅针对本区块内实际出现的原文条款输出风险，勿重复或编造其他区块内容）：\n    ${chunk}\n    `;
+
+        let chunkIssues: AuditIssue[] | null = null;
+        for (let attempt = 1; attempt <= MAX_AUDITOR_ATTEMPTS; attempt++) {
+            const resultStr = await callLLM(systemPrompt, userPrompt, {
+                jsonMode: true,
+                model: PRO_MODEL,
+                thinking: true,
+                effort: 'high',
+            });
+            chunkIssues = parseAuditorResponse(resultStr);
+            if (chunkIssues !== null) break; // 拿到有效结果（含真·空数组），停止
+            console.warn(`[Auditor] 区块 ${chunkIdx + 1}/${chunks.length} 第 ${attempt}/${MAX_AUDITOR_ATTEMPTS} 次返回空或无效结构，` +
+                (attempt < MAX_AUDITOR_ATTEMPTS ? '重试...' : '放弃。'));
+            if (resultStr) console.warn('[Auditor] 无效返回片段:', resultStr.slice(0, 200));
+        }
+
+        if (chunkIssues === null) {
+            throw new Error('核心审查多次重试仍未获得有效结果，请重试或转人工复核');
+        }
+        return chunkIssues;
+    };
+
+    const chunkResults = await mapWithConcurrency(
+        chunks,
+        AUDITOR_CHUNK_CONCURRENCY,
+        auditChunk,
+    );
+
+    const combinedIssues = chunks.length > 1
+        ? dedupChunkOverlapIssues(chunkResults.flat())
+        : chunkResults[0];
 
     // Ensure IDs are unique
-    return issues.map((issue, index) => ({ ...issue, id: `risk_${Date.now()}_${index}` }));
+    return combinedIssues.map((issue, index) => ({ ...issue, id: `risk_${Date.now()}_${index}` }));
 }

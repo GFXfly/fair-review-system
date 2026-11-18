@@ -3,6 +3,8 @@ import { callLLM, QWEN_MODEL, PRO_MODEL } from '@/lib/llm';
 import { TextChunker } from '@/lib/text-utils';
 import { AuditIssue } from './auditor';
 import { APP_CONFIG } from '@/lib/config';
+import { BIDDING_COMPLIANCE_SAFE_HARBOR_PROMPT } from '@/lib/bidding-precision';
+import { getApprovedFalsePositivePrompt } from '@/lib/feedback-learning';
 
 /**
  * Builds a context window around risk.location so the Defender sees the
@@ -62,35 +64,38 @@ export const JUDGE_MODEL = PRO_MODEL;      // Judge: DeepSeek V4 Pro 思考模�
  * Agent B: The Defender
  * Tries to find exculpatory evidence or exceptions for a given risk.
  */
-export async function runDefender(risk: AuditIssue, docText: string): Promise<string> {
+export async function runDefender(risk: AuditIssue, docText: string, category: string = ''): Promise<string> {
     const prompt = `
-你是一名资深的公平竞争审查政策顾问，通过仔细研究文件上下文和法律例外条款，为被指控“违规”的条款寻找辩护理由。
+你是一名资深的公平竞争审查政策顾问，通过仔细研究文件上下文、法定例外条款和招投标法定合规边界，为被指控“违规”的条款寻找合法辩护理由。
 
 【背景】
+当前文件审查类别：${category || '未指定'}
 审查员认为文件中的以下内容存在公平竞争风险：
 - 风险描述：${risk.description}
 - 风险等级：${risk.risk_level}
 - 所在位置：${risk.location}
 
 【任务】
-请阅读以下文件全文片段（或全文），尝试针对上述指控进行辩护。
-思考方向：
-1. 该条款是否属于公平竞争审查相关法规（如《公平竞争审查条例》、地方审查细则）规定的例外情形？
-2. 该条款的“限制”是否具有必要性、合理性（如为了实现特定的社会公共利益，且没有更好替代方案）？
+请阅读以下文件上下文与合规白名单，尝试针对上述指控进行辩护。
+重点思考方向：
+1. 该条款是否直接落入下方【招投标法定合规白名单】中的合法情形（如政府采购不允许进口产品、泛指 CMA/CNAS 通用检测标识、不限地域且分值合理的同类项目履约业绩、国家法定最低资质与人员资格、支持多元保函的保证金要求、≥3个参考品牌且已明确注明“或相当于”等）？若属于白名单情形，请果断、有力地援引《政府采购法》《招标投标法》及对应合规边界予以抗辩！
+2. 该条款是否属于公平竞争审查相关法规（如《公平竞争审查条例》、地方审查细则）规定的例外情形？
 3. 上下文中是否有其他前置条件减免了其违规性？
+
+${BIDDING_COMPLIANCE_SAFE_HARBOR_PROMPT}
 
 【文件内容（已定位到风险条款附近）】
 ${buildDebateContext(risk, docText)}
 
 【输出要求】
-请直接输出一段简练的“辩护词”。
+请直接输出一段简练有力的“辩护词”。
 注意：辩护词面向外部公开反馈，只能引用公开颁布的法律法规与审查细则，严禁出现“集中答疑口径”“总局答疑”等内部资料字样。
-如果确实无法找到合理解释，请直接回答：“无有效辩护理由。”
+如果确实触犯禁止性红线且无法找到合法合规解释，请直接回答：“无有效辩护理由。”
 `;
 
     try {
         const response = await callLLM(
-            "你是一名专业的政策合规辩护律师。请进行深度思考，使用逻辑推理寻找合法的辩护切入点。",
+            "你是一名专业的政策合规辩护律师。请进行深度思考，精准识别法定合规白名单与真实违规红线，寻找合法的辩护切入点。",
             prompt,
             { jsonMode: false, model: DEBATE_MODEL } // Qwen，跨厂商对抗
         );
@@ -105,76 +110,77 @@ ${buildDebateContext(risk, docText)}
  * Agent C: The Judge
  * Decides whether the risk stands after hearing the prosecution and defense.
  */
-export async function runJudge(risk: AuditIssue, defense: string): Promise<AuditIssue | null> {
+export async function runJudge(
+    risk: AuditIssue,
+    defense: string,
+    guidance: string = '',
+    category: string = ''
+): Promise<AuditIssue | null> {
     // If no defense, the risk stands automatically
     if (defense.includes("无有效辩护理由") || defense.includes("辩护服务暂时不可用")) {
         return risk;
     }
 
-    const prompt = `
-你是一名公正严谨的公平竞争审查主审官。请根据审查员的指控和起草人的辩护，对该风险点进行最终裁决。
+    const learnedFalsePositives = await getApprovedFalsePositivePrompt();
+    const guidanceSnippet = guidance ? guidance.substring(0, 6000) : '';
 
-【审查员指控】
+    const prompt = `
+你是一名公正严谨的公平竞争审查主审官。请根据审查员的指控、起草人的辩护、核心细则与实务口径以及法定合规白名单，对该风险点进行最终双刃裁决。
+
+【审查背景】
+- 文件类别：${category || '未指定'}
 - 描述：${risk.description}
 - 原始判定等级：${risk.risk_level}
 - 违反条款：${risk.violated_law}
+- 原文位置：${risk.location}
 
 【起草人辩护】
 ${defense}
 
+${guidanceSnippet ? `【核心细则与实务口径准绳（⚠️ 内部参考，对外严禁泄露“集中答疑口径/总局答疑”等内部名称）】：\n${guidanceSnippet}\n` : ''}
+${BIDDING_COMPLIANCE_SAFE_HARBOR_PROMPT}
+
+${learnedFalsePositives ? `${learnedFalsePositives}\n` : ''}
 // ==========================================
-// 🔥 裁决标准（从严把握）
+// 🔥 双刃裁决准绳（严守真违规底线 + 果断剔除假阳性误报）
 // ==========================================
 
 【裁决标准】（⚠️ 请严格遵守）
 
-1. **DISMISS（驳回风险）** - 仅在以下情况才可选择：
-   必要条件（全部满足）：
-   ✓ 辩护明确引用了公平竞争审查相关法规（如《公平竞争审查条例》第五条等）所规定的例外情形
-   ✓ 文件内容确实符合该例外情形，且有充分证据支持
-   ✓ 例外适用范围明确、限期清晰，不存在滥用可能
+1. **MAINTAIN（铁面维持）** - 凡触犯以下禁止性红线，一律维持违规：
+   ✓ 触犯《浙江省招标投标领域公平竞争审查细则》（21条）、《公平竞争审查条例实施办法》或上方实务口径明确禁止的红线（如：要求本地注册/设立分支机构/当地纳税社保、特定行政区域业绩或奖项加分、商业保险连续投保年限或保额分档加分、慈善公益/捐赠加分、高企/专精特新/AAA信用等级加分、注册资本/营收/纳税规模门槛、原厂授权书或厂家鲜章检测报告、限定现金排斥电子保函、推荐品牌未注明“或相当于”等）；
+   ✓ 即使起草人辩称“为了保障工程质量/售后服务/方便管理”，只要实质构成排除或限制竞争且无明确法定例外依据，**一律 MAINTAIN**。
 
-   排除情况（有以下任一情况不得DISMISS）：
-   ✗ 辩护理由含糊不清，未明确指出具体法律依据
-   ✗ 辩护仅提出"可能性"、"或许"等模糊表述
-   ✗ 辩护引用了非公平竞争审查领域的法规（如地方自主权、产业政策等）
-   ✗ 辩护理由是"普遍做法"、"参考其他地区"（这不构成合法性）
+2. **DISMISS（果断驳回误报）** - 置信度给 90~95%，以下情况必须果断驳回并剔除：
+   ✓ 确属【招投标法定合规白名单】中的合法常规条款（如：政府采购明确不允许采购进口产品、仅要求第三方检测报告带 CMA 或 CNAS 通用法定标识、不限地域且分值合理的同类项目履约业绩、法定最低行业资质及人员执业资格、允许银行/保险/电子保函的保证金条款、列举 ≥3 个参考品牌且已明确注明“或相当于”）；
+   ✓ 确属【本系统历史人工复核确认的合规豁免反例】中的本质相同合法条款；
+   ✓ 辩护明确引用了《公平竞争审查条例》等法定例外情形且上下文证据充分。
 
-2. **DOWNGRADE（降级）** - 以下情况可降级：
-   ✓ 辩护指出了合理的减轻情节（如限制范围较小、影响有限）
-   ✓ 文件措辞不够明确，存在解释空间
-   ✓ 可通过轻微修改消除风险
-
-3. **MAINTAIN（维持）** - 默认选择，以下情况必须维持：
-   ✓ 辩护理由不足以推翻原判
-   ✓ 辩护未提供有效法律依据
-   ✓ 风险明确且严重
+3. **DOWNGRADE（降级）** - 以下情况可降级：
+   ✓ 辩护指出了合理的减轻情节（如限制范围较小、措辞存在解释空间、可通过轻微修改消除风险）。
 
 【裁决原则】
-- **宁可维持，不轻易驳回**：如有疑问，默认选择 MAINTAIN
-- **从严把握DISMISS**：只有辩护理由完全成立且有明确法律依据时才可DISMISS
-- **置信度要求**：DISMISS决定要求置信度≥85%，否则改为DOWNGRADE
-- **理由清晰**：ruling_reason 必须说明具体依据，不能含糊其辞
-- **对外合规表达**：辩护词与 ruling_reason、revised_risk 均面向外部公开反馈，只能引用公开颁布的法律法规与审查细则，严禁出现“集中答疑口径”“总局答疑”等内部资料字样
+- **真违规绝不放过，合法合规条款绝不误伤**：对照上方双刃准绳精准区分“真违规红线”与“法定合规白名单”；
+- **置信度要求**：决定 DISMISS 时，若确属白名单/合规反例或充分法定例外，置信度应给出 90~95；否则若置信度 < 85% 将自动转为 DOWNGRADE；
+- **理由清晰**：ruling_reason 必须说明具体公开法律法规或合规边界依据；
+- **对外合规脱敏铁律**：ruling_reason 与 revised_risk 面向外部公开反馈，只能引用公开颁布的法律法规与审查细则，**严禁出现“集中答疑口径”“总局答疑”“业务口径”“内部口径”或 [总局答疑XX] 等任何内部资料字样**。
 
 【输出格式 (JSON)】
 {
     "final_decision": "MAINTAIN" | "DOWNGRADE" | "DISMISS",
     "confidence": 0-100, // 你对该决定的置信度
-    "ruling_reason": "详细说明裁决理由，包括：\n1. 辩护理由是否成立\n2. 法律依据是否充分\n3. 做出该决定的具体依据",
+    "ruling_reason": "详细说明裁决理由，包括：\n1. 是否触犯禁止性红线或属于法定合规白名单\n2. 辩护理由是否成立及公开法律依据\n3. 做出该决定的具体依据",
     "revised_risk": {  // 仅在 MAINTAIN 或 DOWNGRADE 时需要
         "risk_level": "High" | "Medium" | "Low",
         "description": "如需修正风险描述，在此填写",
         "suggestion": "如需修正整改建议，在此填写"
     }
 }
-
-⚠️ 特别提醒：本系统用于政府文件合规审查，宁可谨慎（维持风险），不可疏漏（错误驳回）。
 `;
 
     try {
         const responseCtx = await callLLM(
-            "你是一名公正严谨的法官。请严格按照标准进行裁决，输出 JSON 格式结果。",
+            "你是一名公正严谨的公平竞争审查主审官。请严格按照双刃裁决准绳进行裁决，输出 JSON 格式结果。",
             prompt,
             { jsonMode: true, model: JUDGE_MODEL, thinking: true, effort: 'high' } // V4 Pro 思考裁决
         );

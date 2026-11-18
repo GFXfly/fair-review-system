@@ -392,6 +392,7 @@ test('COOKIE_SECURE=false disables secure cookie flag in production and API stat
     const feedbackPatchRoute = loadTs('src/app/api/feedback/[id]/route.ts', {
         'next/server': { NextResponse: { json: (b, o) => ({ body: b, status: o?.status || 200 }) } },
         '@/lib/prisma': { prisma: {} },
+        '@/lib/feedback-learning': { invalidateFeedbackLearningCache: () => {} },
         '@/lib/auth': {
             requireAdmin: async () => ({ id: 1, role: 'admin' }),
             handleAuthError: authMock.handleAuthError,

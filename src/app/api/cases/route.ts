@@ -27,11 +27,17 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type');
         const id = searchParams.get('id');
 
-        if (id) {
+        if (id !== null) {
+            if (!/^\d+$/.test(id)) {
+                return NextResponse.json({ error: '无效的案例ID' }, { status: 400 });
+            }
             const caseItem = await prisma.case.findUnique({
-                where: { id: parseInt(id) },
+                where: { id: parseInt(id, 10) },
                 include: { report: true }
             });
+            if (!caseItem) {
+                return NextResponse.json({ error: '案例不存在' }, { status: 404 });
+            }
             return NextResponse.json(caseItem);
         }
 

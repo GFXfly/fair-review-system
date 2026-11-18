@@ -5,18 +5,153 @@ import { JSDOM } from 'jsdom';
 const window = new JSDOM('').window;
 const DOMPurify = createDOMPurify(window);
 
+const MAX_ZIP_ENTRIES = 2000;
+const MAX_SINGLE_ENTRY_BYTES = 40 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_BYTES = 80 * 1024 * 1024;
+
+/**
+ * 校验 .docx/.wps 压缩包结构与解压安全性，防止伪造文件头、路径穿越及 Zip Bomb
+ */
+export function validateDocxArchiveSafety(buffer: Buffer): void {
+    if (
+        !Buffer.isBuffer(buffer) ||
+        buffer.length < 4 ||
+        buffer[0] !== 0x50 ||
+        buffer[1] !== 0x4b ||
+        buffer[2] !== 0x03 ||
+        buffer[3] !== 0x04
+    ) {
+        throw new Error('文件头格式校验失败：不是有效的 .docx 文档');
+    }
+
+    if (buffer.length < 22) {
+        throw new Error('无效或异常的压缩结构，无法安全解析');
+    }
+
+    const searchMinOffset = Math.max(0, buffer.length - Math.min(buffer.length, 65557));
+    let eocdOffset = -1;
+    let fallbackEocdOffset = -1;
+
+    for (let i = buffer.length - 22; i >= searchMinOffset; i--) {
+        if (buffer.readUInt32LE(i) === 0x06054b50) {
+            const commentLen = buffer.readUInt16LE(i + 20);
+            if (i + 22 + commentLen === buffer.length) {
+                eocdOffset = i;
+                break;
+            }
+            if (fallbackEocdOffset === -1 && i + 22 + commentLen <= buffer.length) {
+                fallbackEocdOffset = i;
+            }
+        }
+    }
+
+    if (eocdOffset === -1) {
+        eocdOffset = fallbackEocdOffset;
+    }
+
+    if (eocdOffset === -1) {
+        throw new Error('无效或异常的压缩结构，无法安全解析');
+    }
+
+    const diskNumber = buffer.readUInt16LE(eocdOffset + 4);
+    const cdStartDisk = buffer.readUInt16LE(eocdOffset + 6);
+    const entriesOnDisk = buffer.readUInt16LE(eocdOffset + 8);
+    const totalEntries = buffer.readUInt16LE(eocdOffset + 10);
+    const cdSize = buffer.readUInt32LE(eocdOffset + 12);
+    const cdOffset = buffer.readUInt32LE(eocdOffset + 16);
+
+    if (
+        diskNumber !== 0 ||
+        cdStartDisk !== 0 ||
+        entriesOnDisk !== totalEntries ||
+        totalEntries === 0xffff ||
+        cdSize === 0xffffffff ||
+        cdOffset === 0xffffffff ||
+        cdOffset + cdSize > buffer.length ||
+        cdOffset + cdSize > eocdOffset
+    ) {
+        throw new Error('无效或异常的压缩结构，无法安全解析');
+    }
+
+    if (totalEntries > MAX_ZIP_ENTRIES) {
+        throw new Error('文档解压后体积异常（疑似压缩炸弹或超大内嵌对象），已拒绝解析');
+    }
+
+    let pos = cdOffset;
+    const cdEnd = cdOffset + cdSize;
+    let totalUncompressedBytes = 0;
+    let hasDocumentXml = false;
+
+    for (let i = 0; i < totalEntries; i++) {
+        if (pos + 46 > cdEnd || buffer.readUInt32LE(pos) !== 0x02014b50) {
+            throw new Error('无效或异常的压缩结构，无法安全解析');
+        }
+
+        const compressedSize = buffer.readUInt32LE(pos + 20);
+        const uncompressedSize = buffer.readUInt32LE(pos + 24);
+        const fnLen = buffer.readUInt16LE(pos + 28);
+        const exLen = buffer.readUInt16LE(pos + 30);
+        const cmLen = buffer.readUInt16LE(pos + 32);
+
+        if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff) {
+            throw new Error('无效或异常的压缩结构，无法安全解析');
+        }
+
+        const nextPos = pos + 46 + fnLen + exLen + cmLen;
+        if (nextPos > cdEnd) {
+            throw new Error('无效或异常的压缩结构，无法安全解析');
+        }
+
+        const entryName = buffer.toString('utf8', pos + 46, pos + 46 + fnLen);
+        if (
+            entryName.includes('\0') ||
+            entryName.startsWith('/') ||
+            entryName.startsWith('\\') ||
+            /^[a-zA-Z]:/.test(entryName) ||
+            entryName.split(/[/\\]/).includes('..')
+        ) {
+            throw new Error('无效或异常的压缩结构，无法安全解析');
+        }
+
+        if (entryName === 'word/document.xml') {
+            hasDocumentXml = true;
+        }
+
+        totalUncompressedBytes += uncompressedSize;
+        if (
+            uncompressedSize > MAX_SINGLE_ENTRY_BYTES ||
+            totalUncompressedBytes > MAX_TOTAL_UNCOMPRESSED_BYTES
+        ) {
+            throw new Error('文档解压后体积异常（疑似压缩炸弹或超大内嵌对象），已拒绝解析');
+        }
+
+        pos = nextPos;
+    }
+
+    if (pos !== cdEnd || !hasDocumentXml) {
+        throw new Error('无效或异常的压缩结构，无法安全解析');
+    }
+}
+
 /**
  * Sanitize HTML to prevent XSS while preserving document structure
  */
 function sanitizeHtml(html: string): string {
-    return DOMPurify.sanitize(html, {
+    const cleaned = DOMPurify.sanitize(html, {
         ALLOWED_TAGS: [
             'p', 'br', 'b', 'i', 'em', 'strong', 'a',
             'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
             'div', 'span', 'ul', 'ol', 'li'
         ],
-        ALLOWED_ATTR: ['class', 'style', 'id', 'colspan', 'rowspan', 'href', 'target', 'data-html-content'],
+        ALLOWED_ATTR: ['class', 'id', 'colspan', 'rowspan', 'href', 'rel', 'data-html-content'],
+    });
+
+    return cleaned.replace(/<a\b([^>]*)>/gi, (match, attrs) => {
+        if (/\brel\s*=/i.test(attrs)) {
+            return match.replace(/\brel\s*=\s*(['"])[^'"]*\1/i, 'rel="noopener noreferrer"');
+        }
+        return `<a${attrs} rel="noopener noreferrer">`;
     });
 }
 
@@ -50,6 +185,8 @@ export async function extractTextFromFile(file: File, preloadedBuffer?: Buffer):
             fileName.endsWith('.docx') ||
             fileName.endsWith('.wps')
         ) {
+            validateDocxArchiveSafety(buffer);
+
             try {
                 // Use convertToHtml to preserve structure like tables
                 const result = await mammoth.convertToHtml({ buffer });
@@ -154,14 +291,6 @@ export async function extractTextFromFile(file: File, preloadedBuffer?: Buffer):
                     const liInner = inner.replace(/^\s*<li\b[^>]*>([\s\S]*?)<\/li>\s*$/i, '$1').trim();
                     return liInner ? `<h4>${liInner}</h4>` : '';
                 });
-
-                // Decode entities in HTML version too
-                displayHtml = displayHtml
-                    .replace(/&nbsp;/g, " ")
-                    .replace(/&amp;/g, "&")
-                    .replace(/&lt;/g, "<")
-                    .replace(/&gt;/g, ">")
-                    .replace(/&quot;/g, '"');
 
                 return {
                     text,

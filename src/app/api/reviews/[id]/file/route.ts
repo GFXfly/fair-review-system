@@ -39,6 +39,9 @@ export async function GET(
                 'Content-Type':
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 'Cache-Control': 'private, max-age=3600',
+                'X-Content-Type-Options': 'nosniff',
+                'Content-Disposition': `attachment; filename="${safeId}.docx"`,
+                'Cross-Origin-Resource-Policy': 'same-origin',
             },
         });
     } catch {

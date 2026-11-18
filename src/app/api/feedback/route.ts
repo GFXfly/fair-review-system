@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, handleAuthError } from '@/lib/auth';
+import { requireAuth, requireAdmin, handleAuthError } from '@/lib/auth';
 
 // POST /api/feedback - 提交反馈
 export async function POST(req: NextRequest) {
@@ -84,12 +84,7 @@ export async function POST(req: NextRequest) {
 // GET /api/feedback - 获取反馈列表（管理员用）
 export async function GET(req: NextRequest) {
     try {
-        const user = await requireAuth(req);
-
-        // 只有管理员可以查看反馈列表
-        if (user.role !== 'admin') {
-            return NextResponse.json({ error: '权限不足' }, { status: 403 });
-        }
+        await requireAdmin(req);
 
         const { searchParams } = new URL(req.url);
         const status = searchParams.get('status'); // pending, approved, rejected
@@ -140,6 +135,6 @@ export async function GET(req: NextRequest) {
 
     } catch (error) {
         console.error('Get feedbacks error:', error);
-        return NextResponse.json({ error: '获取反馈列表失败' }, { status: 500 });
+        return handleAuthError(error);
     }
 }

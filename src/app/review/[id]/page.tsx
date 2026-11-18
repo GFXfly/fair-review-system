@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { formatParagraphText, getCategoryLabel, parseDocContent, type DocParagraph } from './doc-utils';
 import { findMatchingParagraphIds, highlightTextInNode, clearHighlights } from './highlight-utils';
+import { extractChineseDocxParagraphHints, enhanceRenderedDocxDom } from './docx-enhance';
 import { exportReviewReport, type RiskItem, type RiskLevel } from './export-utils';
 import SmartTable from './SmartTable';
 import RiskDetail from './RiskDetail';
@@ -319,7 +320,13 @@ export default function ReviewPage() {
 
         (async () => {
             try {
-                const { renderAsync } = await import('docx-preview');
+                if (!docxRef.current || !docxBlobRef.current) return;
+                // 先在 zoom=1 自然尺寸下执行 renderAsync 与 DOM 增强，避免缩放状态干扰宽度/换行测量
+                docxRef.current.style.zoom = '1';
+                const [{ renderAsync }, hints] = await Promise.all([
+                    import('docx-preview'),
+                    extractChineseDocxParagraphHints(docxBlobRef.current),
+                ]);
                 if (cancelled || !docxRef.current) return;
                 docxRef.current.innerHTML = '';
                 await renderAsync(docxBlobRef.current!, docxRef.current, undefined, {
@@ -337,6 +344,8 @@ export default function ReviewPage() {
                     useBase64URL: true,                  // 稳定还原文档内嵌图片与签章
                 });
                 if (cancelled || !docxRef.current) return;
+
+                enhanceRenderedDocxDom(docxRef.current, hints);
 
                 const sections = docxRef.current.querySelectorAll('section.docx');
                 const widths = Array.from(sections)
@@ -573,11 +582,15 @@ export default function ReviewPage() {
                     {docxAvailable === true && (
                         <div className={`${styles.docxStage} ${docxReady ? '' : styles.docxStageHidden}`}>
                             <div
-                                ref={docxRef}
-                                className={styles.docxNative}
-                                data-html-content="true"
+                                className={styles.docxZoomLayer}
                                 style={{ zoom: docxReady ? effectiveZoom : 1 }}
-                            />
+                            >
+                                <div
+                                    ref={docxRef}
+                                    className={styles.docxNative}
+                                    data-html-content="true"
+                                />
+                            </div>
                         </div>
                     )}
 

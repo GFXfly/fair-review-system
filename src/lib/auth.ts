@@ -6,15 +6,40 @@ import { getSessionOptions, SessionData } from '@/lib/session';
 
 export const PASSWORD_REQUIREMENTS_MSG = '密码长度至少8位，且包含字母、数字、特殊字符中的两种及以上';
 
-export function validatePassword(password: string): boolean {
-    if (!password || password.length < 8) return false;
+export interface PasswordValidationResult {
+    valid: boolean;
+    message?: string;
+}
+
+export function validatePassword(password: string): PasswordValidationResult {
+    if (typeof password !== 'string' || password.length < 8) {
+        return { valid: false, message: PASSWORD_REQUIREMENTS_MSG };
+    }
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+        return { valid: false, message: '密码长度不能超过 72 个字符' };
+    }
 
     let types = 0;
     if (/[a-zA-Z]/.test(password)) types++;
     if (/[0-9]/.test(password)) types++;
     if (/[^a-zA-Z0-9]/.test(password)) types++;
 
-    return types >= 2;
+    if (types < 2) {
+        return { valid: false, message: PASSWORD_REQUIREMENTS_MSG };
+    }
+
+    return { valid: true };
+}
+
+export function normalizePasswordValidation(
+    result: boolean | PasswordValidationResult
+): PasswordValidationResult {
+    if (typeof result === 'boolean') {
+        return result
+            ? { valid: true }
+            : { valid: false, message: PASSWORD_REQUIREMENTS_MSG };
+    }
+    return result;
 }
 
 /**

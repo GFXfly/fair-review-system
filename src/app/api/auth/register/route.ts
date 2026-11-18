@@ -56,9 +56,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!validatePassword(password)) {
+        const passwordCheck = validatePassword(password);
+        const isPasswordValid =
+            typeof passwordCheck === 'boolean' ? passwordCheck : passwordCheck.valid;
+        if (!isPasswordValid) {
+            const errorMsg =
+                typeof passwordCheck === 'boolean'
+                    ? PASSWORD_REQUIREMENTS_MSG
+                    : (passwordCheck.message || PASSWORD_REQUIREMENTS_MSG);
             return NextResponse.json(
-                { error: PASSWORD_REQUIREMENTS_MSG },
+                { error: errorMsg },
                 { status: 400 }
             );
         }

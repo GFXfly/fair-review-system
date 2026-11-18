@@ -32,23 +32,36 @@ export const generalApiRateLimiter = new RateLimiterMemory({
 });
 
 /**
- * Get client identifier from request
+ * 从反向代理请求头中提取可信客户端 IP：
+ * 1) 优先取单层 Nginx 强制覆写的 X-Real-IP；
+ * 2) 其次取 X-Forwarded-For 末段（proxy_add_x_forwarded_for 追加的真实来源 IP，防止伪造首段绕过限流）；
+ * 3) 兜底返回 'unknown'。
  */
-export function getClientId(request: NextRequest): string {
-    // Try to get real IP from various headers (for proxy/load balancer scenarios)
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const realIp = request.headers.get('x-real-ip');
-
-    if (forwardedFor) {
-        return forwardedFor.split(',')[0].trim();
-    }
-
+export function getTrustedClientIp(request: NextRequest | Request): string {
+    const realIp = request.headers.get('x-real-ip')?.trim();
     if (realIp) {
         return realIp;
     }
 
-    // Fallback to a generic identifier
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    if (forwardedFor) {
+        const parts = forwardedFor
+            .split(',')
+            .map(part => part.trim())
+            .filter(Boolean);
+        if (parts.length > 0) {
+            return parts[parts.length - 1];
+        }
+    }
+
     return 'unknown';
+}
+
+/**
+ * Get client identifier from request
+ */
+export function getClientId(request: NextRequest | Request): string {
+    return getTrustedClientIp(request);
 }
 
 /**

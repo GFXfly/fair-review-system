@@ -5,6 +5,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { NextRequest } from 'next/server';
+import { getTrustedClientIp } from '@/lib/rate-limit';
 
 export type AuditAction =
     | 'login'                   // 用户登录
@@ -51,10 +52,9 @@ function getClientInfo(request?: NextRequest) {
         };
     }
 
-    // 获取真实IP地址（考虑代理）
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const realIp = request.headers.get('x-real-ip');
-    const ipAddress = forwardedFor?.split(',')[0] || realIp || null;
+    // 获取可信真实 IP 地址（防伪造 X-Forwarded-For 首段）
+    const trustedIp = getTrustedClientIp(request);
+    const ipAddress = trustedIp === 'unknown' ? null : trustedIp;
 
     // 获取 User Agent
     const userAgent = request.headers.get('user-agent') || null;

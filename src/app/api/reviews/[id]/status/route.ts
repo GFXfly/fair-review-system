@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { AuthError, handleAuthError, requireAuth } from '@/lib/auth';
 import { recoverStaleReviews } from '@/lib/review-recovery';
 
 /**
@@ -56,6 +56,9 @@ export async function GET(
         });
 
     } catch (error: any) {
+        if ((typeof AuthError === 'function' && error instanceof AuthError) || error?.name === 'AuthError') {
+            return handleAuthError(error);
+        }
         console.error('Error fetching review status:', error);
         return NextResponse.json(
             { error: error.message || '获取状态失败' },

@@ -1,15 +1,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { requireAdmin, handleAuthError } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
     try {
-        const user = await getCurrentUser();
-
-        if (!user || user.role !== 'admin') {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        await requireAdmin(req);
 
         const [
             totalFiles,
@@ -43,7 +39,6 @@ export async function GET(req: NextRequest) {
             activeUsers: distinctUsers.length
         });
     } catch (error) {
-        console.error('Failed to fetch review stats:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleAuthError(error);
     }
 }

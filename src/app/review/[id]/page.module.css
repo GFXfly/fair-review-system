@@ -318,8 +318,58 @@
     pointer-events: none;
 }
 
+.docxZoomLayer {
+    display: block;
+}
+
 .docxNative {
     display: block;
+}
+
+.docxNative :global(.docx-redhead-scale) {
+    display: inline-block;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+}
+
+.docxNative :global(.docx-redhead-scale span) {
+    white-space: nowrap !important;
+}
+
+.docxNative :global(.docx-toc-row) {
+    display: flex !important;
+    align-items: baseline;
+    box-sizing: border-box;
+    text-indent: 0 !important;
+}
+
+.docxNative :global(a.docx-toc-row) {
+    width: 100%;
+}
+
+.docxNative :global(.docx-toc-title) {
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: normal;
+    text-indent: 0 !important;
+}
+
+.docxNative :global(.docx-toc-leader) {
+    flex: 1 1 24px;
+    min-width: 16px;
+    border-bottom: 1.5px dotted currentColor;
+    opacity: 0.55;
+    margin: 0 6px;
+    transform: translateY(-0.26em);
+    word-spacing: 0 !important;
+    text-decoration: none !important;
+}
+
+.docxNative :global(.docx-toc-page) {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    text-indent: 0 !important;
 }
 
 .docxNative :global(.docx-wrapper) {

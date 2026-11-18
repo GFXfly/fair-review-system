@@ -504,7 +504,7 @@ export default function LoginPage() {
 
                     <p className={styles.formNote}>
                         <LockIcon size={13} />
-                        内部政务及授权代理机构使用 · 严禁上传涉密文档
+                        严禁上传涉密文档
                     </p>
                 </div>
             </section>

@@ -58,8 +58,15 @@ export async function POST(request: NextRequest) {
         }
 
         const hasCustomPassword = typeof newPassword === 'string' && newPassword.length > 0;
-        if (hasCustomPassword && !validatePassword(newPassword)) {
-            return NextResponse.json({ error: `新密码无效：${PASSWORD_REQUIREMENTS_MSG}` }, { status: 400 });
+        if (hasCustomPassword) {
+            const pwdCheck = validatePassword(newPassword);
+            const isPwdValid = typeof pwdCheck === 'boolean' ? pwdCheck : pwdCheck.valid;
+            if (!isPwdValid) {
+                const pwdMsg = typeof pwdCheck === 'object' && pwdCheck.message
+                    ? pwdCheck.message
+                    : PASSWORD_REQUIREMENTS_MSG;
+                return NextResponse.json({ error: `新密码无效：${pwdMsg}` }, { status: 400 });
+            }
         }
 
         // Check if target user exists

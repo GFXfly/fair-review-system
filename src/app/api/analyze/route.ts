@@ -9,8 +9,8 @@ import { prisma } from '@/lib/prisma';
 import { TextChunker } from '@/lib/text-utils';
 import { logSuccess, logFailure } from '@/lib/audit-logger';
 import { createErrorResponse } from '@/lib/error-handler';
-import { getCurrentUser, requireAuth } from '@/lib/auth';
-import { applyRateLimit, llmAnalysisRateLimiter, getClientId } from '@/lib/rate-limit';
+import { AuthError, getCurrentUser, handleAuthError, requireAuth } from '@/lib/auth';
+import { applyRateLimit, llmAnalysisRateLimiter, getTrustedClientIp } from '@/lib/rate-limit';
 import { encodeRelatedCaseWithCaliber, extractInternalCaliberFromText, sanitizePublicText } from '@/lib/caliber-sanitizer';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
@@ -279,20 +279,34 @@ export async function POST(req: NextRequest) {
     let fileName: string = '';
 
     try {
-        const formData = await req.formData();
-        const file = formData.get('file') as File;
-
-        // Require authentication
+        // 1. 前置鉴权：必须在读取请求体/formData 之前完成认证
         const user = await requireAuth(req);
         userId = user.id;
 
-        // Apply rate limiting
-        const clientId = getClientId(req);
-        const rateLimitResult = await applyRateLimit(llmAnalysisRateLimiter, user.username || clientId);
+        // 2. 前置限流：基于用户名或可信客户端 IP
+        const clientIp = getTrustedClientIp(req);
+        const rateLimitResult = await applyRateLimit(llmAnalysisRateLimiter, user.username || clientIp);
         if (!rateLimitResult.success) {
-            await logFailure('analyze_file', '分析尝试次数过多', userId, undefined, { clientId }, req);
+            await logFailure('analyze_file', '分析尝试次数过多', userId, undefined, { clientId: clientIp }, req);
             return rateLimitResult.response!;
         }
+
+        // 3. 在读取 formData 前快速校验 Content-Length 上限，防止超大请求体打满内存
+        const MAX_FILE_SIZE = 10 * 1024 * 1024;
+        const contentLengthHeader = req.headers.get('content-length');
+        if (contentLengthHeader) {
+            const contentLength = Number(contentLengthHeader);
+            if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE + 256 * 1024) {
+                await logFailure('upload_file', '请求体过大', userId, undefined, { contentLength }, req);
+                return NextResponse.json({
+                    error: '文件过大',
+                    message: '文件大小不能超过 10MB',
+                }, { status: 413 });
+            }
+        }
+
+        const formData = await req.formData();
+        const file = formData.get('file') as File;
 
         if (!file) {
             await logFailure('upload_file', '未提供文件', userId, undefined, undefined, req);
@@ -302,7 +316,6 @@ export async function POST(req: NextRequest) {
         fileName = file.name;
 
         // File size limit: 10MB
-        const MAX_FILE_SIZE = 10 * 1024 * 1024;
         if (file.size > MAX_FILE_SIZE) {
             await logFailure('upload_file', '文件过大', userId, fileName, { fileSize: file.size }, req);
             return NextResponse.json({
@@ -365,13 +378,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Get client IP for logging
-        const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+        // Get trusted client IP for logging
+        const trustedClientIp = getTrustedClientIp(req);
 
         // 🔥 Start async processing (fire and forget)
         // Using setImmediate/setTimeout to not block the response
         setImmediate(() => {
-            processAnalysisAsync(record.id, fileName, file.size, text, html, userId!, clientIp)
+            processAnalysisAsync(record.id, fileName, file.size, text, html, userId!, trustedClientIp)
                 .then(() => {
                     console.log(`[Analyze] Async processing completed for ${record.id}`);
                 })
@@ -390,6 +403,9 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error: any) {
+        if (error instanceof AuthError || (error && typeof error === 'object' && error.name === 'AuthError')) {
+            return handleAuthError(error);
+        }
         console.error('Analysis failed:', error);
         await logFailure('analyze_file', '系统错误', userId, fileName, { error: String(error) }, req);
         return NextResponse.json(createErrorResponse(error, '文件分析'), { status: 500 });

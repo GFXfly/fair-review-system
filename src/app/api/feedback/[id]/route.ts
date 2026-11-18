@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin, handleAuthError } from '@/lib/auth';
 
 // PATCH /api/feedback/[id] - 管理员审核反馈
 export async function PATCH(
@@ -8,15 +8,13 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const user = await requireAuth(req);
-
-        // 只有管理员可以审核
-        if (user.role !== 'admin') {
-            return NextResponse.json({ error: '权限不足' }, { status: 403 });
-        }
+        const user = await requireAdmin(req);
 
         const { id } = await params;
-        const feedbackId = parseInt(id);
+        if (!/^\d+$/.test(id)) {
+            return NextResponse.json({ error: '无效的反馈ID' }, { status: 400 });
+        }
+        const feedbackId = parseInt(id, 10);
         const body = await req.json();
         const { adminStatus, adminComment } = body;
 
@@ -51,6 +49,6 @@ export async function PATCH(
 
     } catch (error) {
         console.error('Review feedback error:', error);
-        return NextResponse.json({ error: '审核失败' }, { status: 500 });
+        return handleAuthError(error);
     }
 }

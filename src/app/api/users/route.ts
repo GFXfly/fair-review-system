@@ -61,8 +61,13 @@ export async function POST(request: NextRequest) {
         if (!trimmedUsername || trimmedUsername.length < 3 || trimmedUsername.length > 32) {
             return NextResponse.json({ error: '用户名无效：须为 3-32 个字符' }, { status: 400 });
         }
-        if (!password || typeof password !== 'string' || !validatePassword(password)) {
-            return NextResponse.json({ error: `密码无效：${PASSWORD_REQUIREMENTS_MSG}` }, { status: 400 });
+        const pwdCheck = typeof password === 'string' ? validatePassword(password) : false;
+        const isPwdValid = typeof pwdCheck === 'boolean' ? pwdCheck : pwdCheck.valid;
+        if (!password || typeof password !== 'string' || !isPwdValid) {
+            const pwdMsg = typeof pwdCheck === 'object' && pwdCheck.message
+                ? pwdCheck.message
+                : PASSWORD_REQUIREMENTS_MSG;
+            return NextResponse.json({ error: `密码无效：${pwdMsg}` }, { status: 400 });
         }
         if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 32) {
             return NextResponse.json({ error: '姓名无效：须为 2-32 个字符' }, { status: 400 });

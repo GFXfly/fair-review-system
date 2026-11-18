@@ -13,8 +13,13 @@ prisma/*.local_backup
 models
 *.zip
 dist_intranet
+.env
+.env.*
 .env.local
 .env.backup
 .env.local.backup
+intranet_deploy.txt
+deploy.sh
+tests
 
 

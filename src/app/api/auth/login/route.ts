@@ -6,6 +6,23 @@ import { createErrorResponse } from '@/lib/error-handler';
 import { getSession } from '@/lib/auth';
 import { applyRateLimit, loginRateLimiter, getClientId } from '@/lib/rate-limit';
 
+function getUtf8ByteLength(value: string): number {
+    if (typeof Buffer !== 'undefined') {
+        return Buffer.byteLength(value, 'utf8');
+    }
+    let bytes = 0;
+    for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code < 0x80) bytes += 1;
+        else if (code < 0x800) bytes += 2;
+        else if (code >= 0xd800 && code <= 0xdbff) {
+            bytes += 4;
+            i += 1;
+        } else bytes += 3;
+    }
+    return bytes;
+}
+
 export async function POST(request: NextRequest) {
     try {
         // Apply rate limiting
@@ -17,7 +34,21 @@ export async function POST(request: NextRequest) {
             return rateLimitResult.response!;
         }
 
-        const { username, password } = await request.json();
+        const body = await request.json().catch(() => null);
+        const username = body && typeof body.username === 'string' ? body.username : '';
+        const password = body && typeof body.password === 'string' ? body.password : '';
+
+        if (
+            !username ||
+            !password ||
+            username.length > 64 ||
+            getUtf8ByteLength(password) > 128
+        ) {
+            return NextResponse.json(
+                { error: '用户名或密码错误' },
+                { status: 401 }
+            );
+        }
 
         // 1. Find user
         const user = await prisma.user.findUnique({
